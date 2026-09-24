@@ -19,7 +19,9 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "hono": "4.13.9"
+    "@hono/zod-validator": "0.9.1",
+    "hono": "4.13.9",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.58.0",
