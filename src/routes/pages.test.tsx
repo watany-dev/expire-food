@@ -122,6 +122,25 @@ describe("追加", () => {
     expect(html).toMatch(/value="best_by" required="" checked=""/);
   });
 
+  it("写真の読み取りは JS が表示するまで隠し、同一オリジンのスクリプトだけを許可する", async () => {
+    const res = await app.request("/items/new");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("connect-src 'self'");
+    const html = await res.text();
+    expect(html).toContain('<p id="photo" hidden="">');
+    expect(html).toContain('accept="image/*" capture="environment"');
+    expect(html).toContain('<script src="/extract.js" defer=""></script>');
+  });
+
+  it("/extract.js を毎回確認させて配信する", async () => {
+    const res = await app.request("/extract.js");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(await res.text()).toContain('fetch("/api/extract"');
+  });
+
   it("Origin の無いフォーム送信は 403", async () => {
     const res = await app.request(
       "/items",

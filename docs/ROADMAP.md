@@ -106,24 +106,23 @@
 
 ## Phase 3: 写真からの AI 抽出
 
-ゴール: 撮影 → 読み取り結果がフォームに入る。失敗しても手入力にフォールバックできる。
+ゴール: 撮影 → 読み取り結果がフォームに入る。失敗しても手入力にフォールバックできる。構成は [ADR 0003](./adr/0003-photo-extraction.md)。
 
-- [ ] クライアント: `<input type="file" accept="image/*" capture="environment">`、Canvas で長辺 800px にリサイズ・JPEG 圧縮、2MB 超は送信しない
-- [ ] `POST /api/extract`
-  - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429
-  - 画像サイズ・MIME を検証（2MB 上限）
-  - Workers AI の Vision モデルに JSON のみを返すよう指示（モデルはこの Phase で精度・無料枠の消費量を比較して決定）
+- [x] クライアント（`src/client/extract.js` を `GET /extract.js` で配信）: `<input type="file" accept="image/*" capture="environment">`、Canvas で長辺 800px にリサイズ・JPEG 圧縮、2MB 超は送信しない
+- [x] `POST /api/extract`
+  - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429。読み取りではスペースを発行せず、スペースが無ければ IP をキーにする
+  - 画像サイズ・MIME を検証（2MB 上限、JPEG / PNG / WebP）
+  - Workers AI の Vision モデルに JSON のみを返すよう指示（暫定で `@cf/meta/llama-4-scout-17b-16e-instruct`。精度・無料枠の比較は下の実物確認で行う）
   - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）
-- [ ] AI 応答の検証・正規化（最重要。純粋関数として `src/domain/` に実装しテストを厚くする）
-  - fast-check でプロパティベーステスト（例: 正規化結果は常に実在する `YYYY-MM-DD` か `null`、年省略時は常に今日以降、同じ入力で同じ結果）。未使用だと knip が落ちるのでこの Phase で導入する
+- [x] AI 応答の検証・正規化（`src/domain/extract.ts`。fast-check のプロパティテスト付き）
   - JSON としてパースできなければ全項目 `null`
-  - 日付: `26.10.05` / `2026/10/5` / `2026.10.05` / `R8.10.5`（令和）/ `10.5`・`10月5日`（年省略）
+  - 日付: `26.10.05` / `2026/10/5` / `2026.10.05` / `R8.10.5`（令和）/ `10.5`・`10月5日`（年省略）/ `2027.10`（年月のみ → 月末）
   - 年省略時は「今日（JST）以降で最も近い日付」で補完
   - 存在しない日付（`2/30` など）は `null`
-  - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `best_by` + フォームで確認を促す
-  - `confidence` を返す
-- [ ] 読み取り中表示、失敗時は空欄のまま手入力できる UI
-- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、プロンプトを調整
+  - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `null` を返し、フォームの選択（追加時の初期値は `best_by`）を変えずに確認を促す
+  - `confidence` を返す（低いときはフォームで確認を促す）
+- [x] 読み取り中表示、失敗時は空欄のまま手入力できる UI（JS が無ければ写真の入力欄自体を出さない）
+- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業
 
 ## Phase 4: 共有と PWA
 

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import extractScript from "../client/extract.js?raw";
 import type { Context } from "hono";
 import type { Child } from "hono/jsx";
 
@@ -51,6 +52,13 @@ export const pages = new Hono<{ Bindings: Env }>()
     const listed = items.map((item) => ({ ...item, days_left: daysUntil(item.expires_on, today) }));
     return render(c, "期限メモ", <ItemList items={listed} warnDays={warnDays} />);
   })
+  .get("/extract.js", (c) =>
+    c.body(extractScript, 200, {
+      "content-type": "text/javascript; charset=utf-8",
+      // バージョンを URL に含めないので、デプロイ後に古いスクリプトが残らないよう毎回確認させる
+      "cache-control": "no-cache",
+    }),
+  )
   .get("/items/new", (c) =>
     render(c, "追加", <ItemForm title="追加" action="/items" values={{}} errors={new Set()} />),
   )

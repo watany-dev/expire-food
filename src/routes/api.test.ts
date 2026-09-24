@@ -224,3 +224,106 @@ describe("スペース分離", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("/api/extract", () => {
+  const jpeg = (size = 1024, type = "image/jpeg") =>
+    new File([new Uint8Array(size)], "p.jpg", { type });
+
+  // expect(ai.run) だと unbound-method になるので、モックは run のまま扱う
+  const aiRun = (impl: () => Promise<unknown> = async () => ({ response: "{}" })) => vi.fn(impl);
+  const asAi = (run: ReturnType<typeof aiRun>) => ({ run }) as unknown as Ai;
+  const allow = { limit: vi.fn(async () => ({ success: true })) };
+
+  const extract = async (
+    image: File | string,
+    { run = aiRun(), limiter = allow, headers = {} as Record<string, string> } = {},
+  ) => {
+    const body = new FormData();
+    body.append("image", image);
+    return app.request(
+      "/api/extract",
+      {
+        method: "POST",
+        body,
+        headers: { cookie: `space_id=${await newSpace()}`, origin: "http://localhost", ...headers },
+      },
+      { ...env, AI: asAi(run), EXTRACT_RATE_LIMITER: limiter },
+    );
+  };
+
+  it("画像を data URL で渡し、応答を正規化して返す", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-24T03:00:00Z"));
+    const run = aiRun(async () => ({
+      response: '{"name":"牛乳","date":"10.5","label":"消費期限","confidence":"high"}',
+    }));
+    const res = await extract(jpeg(3), { run });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: "牛乳",
+      expires_on: "2026-10-05",
+      kind: "use_by",
+      confidence: "high",
+    });
+    expect(run).toHaveBeenCalledWith(
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({ role: "system" }),
+          {
+            role: "user",
+            content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,AAAA" } }],
+          },
+        ],
+      }),
+    );
+  });
+
+  it("2MB ちょうどの画像は受け付ける", async () => {
+    expect((await extract(jpeg(2 * 1024 * 1024))).status).toBe(200);
+  });
+
+  it.each([
+    ["2MB を超える画像", jpeg(2 * 1024 * 1024 + 1)],
+    ["画像でないファイル", jpeg(10, "text/plain")],
+    ["ファイルでない値", "not a file"],
+  ])("%s は 400 で AI を呼ばない", async (_, image) => {
+    const run = aiRun();
+    expect((await extract(image, { run })).status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("レート制限を超えたら 429 で AI を呼ばない。キーは space_id", async () => {
+    const run = aiRun();
+    const limiter = { limit: vi.fn(async () => ({ success: false })) };
+    const res = await extract(jpeg(), { run, limiter });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "rate_limited" });
+    expect(run).not.toHaveBeenCalled();
+    expect(limiter.limit).toHaveBeenCalledWith({ key: spaceCookie(res) });
+  });
+
+  it.each([
+    [{ "cf-connecting-ip": "203.0.113.1" }, "ip:203.0.113.1"],
+    [{}, "ip:"],
+  ])("スペースが無ければ発行せず、IP（%j）ごとに数える", async (ip, key) => {
+    const limiter = { limit: vi.fn(async () => ({ success: true })) };
+    const res = await extract(jpeg(), { limiter, headers: { cookie: "", ...ip } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(limiter.limit).toHaveBeenCalledWith({ key });
+  });
+
+  it("AI が失敗したら 502（画像はログに出さない）", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await extract(jpeg(), {
+      run: aiRun(async () => {
+        throw new Error("model unavailable");
+      }),
+    });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "extract_failed" });
+    expect(error).toHaveBeenCalledWith("extract failed", new Error("model unavailable"));
+    error.mockRestore();
+  });
+});
