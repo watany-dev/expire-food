@@ -14,7 +14,7 @@
 | DB                   | Cloudflare D1                 | `migrations/` を `wrangler d1 migrations` で管理                                             |
 | 画像解析             | Workers AI（Vision モデル）   | ローカル開発でも `remote: true` でリモート実行                                               |
 | レート制限           | Workers Rate Limiting binding | `EXTRACT_RATE_LIMITER`（10 回 / 60 秒）。キーは space_id                                     |
-| 入力検証             | Zod + `@hono/zod-validator`   | Phase 1 で導入（未使用のうちは knip が落とすので入れない）                                   |
+| 入力検証             | Zod + `@hono/zod-validator`   | スキーマは `src/domain/schema.ts`。API は `zValidator` で検証                                |
 
 ### Vitest の実行環境について
 
@@ -79,16 +79,17 @@
 
 ゴール: 画面なしで、curl から商品の登録・一覧・更新・削除とスペース設定ができる。
 
-- [ ] 本番 D1 を作成し `database_id` を反映（`wrangler d1 create expire-food`）
-- [ ] Zod スキーマ: `name`（必須・上限 100 文字）/ `expires_on`（実在する `YYYY-MM-DD`）/ `kind`（`best_by` | `use_by`）/ `memo`（任意・上限 500 文字）/ `warn_days`（1〜30）
-- [ ] スペース解決ミドルウェア
+- [ ] 本番 D1 を作成し `database_id` を反映（`wrangler d1 create expire-food`）— Cloudflare の認証が要るため手作業。Phase 5 のデプロイまでに行う
+- [x] Zod スキーマ（`src/domain/schema.ts`）: `name`（必須・上限 100 文字）/ `expires_on`（実在する `YYYY-MM-DD`）/ `kind`（`best_by` | `use_by`）/ `memo`（任意・上限 500 文字）/ `warn_days`（1〜30）
+- [x] スペース解決ミドルウェア（`src/space.ts`、決定は [ADR 0001](./adr/0001-space-resolution.md)）
   - URL `/s/:spaceId` → Cookie の順で解決し、D1 に存在するものだけ採用
   - どちらもなければ `crypto.randomUUID()` で発行して `spaces` に INSERT、Cookie（HttpOnly / Secure / SameSite=Lax / 1 年）を設定
   - URL で開いた場合は Cookie をその ID に更新（機種変更・家族共有）
-- [ ] リポジトリ層: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
-- [ ] API: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
-- [ ] JST の「今日」を返すユーティリティ（`src/domain/`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
-- [ ] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
+- [x] リポジトリ層（`src/platform/db.ts`）: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
+- [x] API（`src/routes/api.ts`）: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
+- [x] JST の「今日」を返すユーティリティ（`src/domain/date.ts`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
+- [x] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
+  - API の結合テストは `src/platform/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
 
 ## Phase 2: 画面（手入力で完結する MVP）
 
