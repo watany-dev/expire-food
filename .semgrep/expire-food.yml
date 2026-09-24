@@ -1,0 +1,76 @@
+rules:
+  - id: no-math-random
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      Math.random() は推測可能です。space_id / item id などの識別子には
+      crypto.randomUUID() または crypto.getRandomValues() を使ってください（要件 8.2）。
+    pattern: Math.random()
+    paths:
+      include: ["src/"]
+
+  - id: d1-no-dynamic-sql
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      D1 の SQL を文字列連結・テンプレートリテラル補間で組み立てないでください。
+      値は prepare("... ?").bind(...) で渡してください。
+    pattern-either:
+      - pattern: $DB.prepare(`...${$X}...`)
+      - pattern: $DB.prepare($A + $B)
+      - pattern: $DB.exec(`...${$X}...`)
+      - pattern: $DB.exec($A + $B)
+    paths:
+      include: ["src/"]
+
+  - id: hono-no-raw-html
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      raw() / dangerouslySetInnerHTML はエスケープを無効化します。
+      ユーザー入力（商品名・メモ）や AI の出力を描画する画面では使わないでください。
+    pattern-either:
+      - pattern: |
+          import { ..., raw, ... } from "hono/html"
+      - pattern: <$EL dangerouslySetInnerHTML={...} />
+      - pattern: <$EL dangerouslySetInnerHTML={...}>...</$EL>
+    paths:
+      include: ["src/"]
+
+  - id: no-logging-request-payload
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      リクエストボディ（撮影画像を含む）をログ出力しないでください（要件 8.1）。
+    patterns:
+      - pattern-either:
+          - pattern-inside: |
+              $X = await $C.req.$READ(...);
+              ...
+          - pattern-inside: |
+              const $X = await $C.req.$READ(...);
+              ...
+          - pattern-inside: |
+              let $X = await $C.req.$READ(...);
+              ...
+      - metavariable-regex:
+          metavariable: $READ
+          regex: ^(arrayBuffer|blob|formData|parseBody|json|text)$
+      - pattern-either:
+          - pattern: console.$LOG(..., $X, ...)
+          - pattern: console.$LOG(..., <... $X ...>, ...)
+    paths:
+      include: ["src/"]
+
+  - id: space-cookie-must-be-hardened
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      space_id Cookie は httpOnly / secure / sameSite を明示してください（要件 3.1）。
+    pattern-either:
+      - pattern: setCookie($C, $NAME, $VALUE)
+      - patterns:
+          - pattern: setCookie($C, $NAME, $VALUE, {...})
+          - pattern-not: 'setCookie($C, $NAME, $VALUE, {..., httpOnly: true, ..., secure: true, ..., sameSite: $S, ...})'
+    paths:
+      include: ["src/"]
