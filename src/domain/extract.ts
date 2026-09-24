@@ -95,7 +95,6 @@ const parseJson = (response: unknown): unknown => {
   }
 };
 
-/** Workers AI の応答を検証・正規化する。読めない項目は null */
 export const parseExtraction = (response: unknown, today: string): Extraction => {
   const { name, date, label, confidence } = aiOutput.parse(parseJson(response));
   return {

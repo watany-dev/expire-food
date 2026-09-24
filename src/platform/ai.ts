@@ -12,7 +12,7 @@ const toBase64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-/** 画像から商品名・期限を読ませる。応答は未検証のまま返すので parseExtraction に通す */
+// 応答は未検証のまま返すので、必ず parseExtraction に通す
 export const runExtraction = async (ai: Ai, image: File): Promise<unknown> => {
   const url = `data:${image.type};base64,${toBase64(new Uint8Array(await image.arrayBuffer()))}`;
   const { response } = await ai.run(MODEL, {
