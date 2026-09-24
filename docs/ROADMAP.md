@@ -91,17 +91,18 @@
 - [x] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
   - API の結合テストは `src/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
 
-## Phase 2: 画面（手入力で完結する MVP）
+## Phase 2: 画面（手入力で完結する MVP）✅
 
-ゴール: スマホで開いて、手入力だけで要件 4.2〜4.5 の操作ができる。この時点で実用可能。
+ゴール: スマホで開いて、手入力だけで要件 4.2〜4.5 の操作ができる。この時点で実用可能。構成は [ADR 0002](./adr/0002-server-rendered-forms.md)（JS なしの SSR フォーム）。
 
-- [ ] 共通レイアウト（Hono JSX、スマホ縦画面前提の CSS、`viewport`）
-- [ ] 一覧: 期限日昇順、商品名 / 期限日 / 種別 / 残り日数、期限切れ=赤・`warn_days` 未満=黄
-- [ ] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証
-- [ ] 削除（確認ダイアログ → 承認時のみ削除）
-- [ ] 設定: `warn_days` の変更
-- [ ] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`）
-- [ ] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト
+- [x] 共通レイアウト（`src/views/layout.tsx`。Hono JSX、スマホ縦画面前提の CSS を埋め込み、`viewport`）
+- [x] 一覧: 期限日昇順、商品名 / 期限日 / 種別 / 残り日数、期限切れ=赤・`warn_days` 未満=黄
+- [x] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証（`src/routes/pages.tsx`）
+- [x] 削除（`popover` の確認ダイアログ → 承認時のみ削除）
+- [x] 設定: `warn_days` の変更
+- [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）
+- [x] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト（`src/domain/status.ts`）
+- [x] 閲覧系の画面ではスペースを発行せず、書き込み時に発行する（ADR 0001 の `/` の扱いを更新）
 
 ## Phase 3: 写真からの AI 抽出
 

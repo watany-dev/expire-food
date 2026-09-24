@@ -1,0 +1,297 @@
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+
+import app from "../index";
+import { createTestEnv } from "../test-env";
+
+let env: Env;
+let dispose: () => Promise<void>;
+
+beforeAll(async () => {
+  ({ env, dispose } = await createTestEnv());
+});
+
+afterAll(async () => {
+  await dispose();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const ORIGIN = "http://localhost";
+
+const spaceCookie = (res: Response): string | undefined =>
+  /space_id=([^;]+)/.exec(res.headers.get("set-cookie") ?? "")?.[1];
+
+const get = (path: string, spaceId?: string) =>
+  app.request(path, { headers: spaceId ? { cookie: `space_id=${spaceId}` } : {} }, env);
+
+const post = (path: string, form: Record<string, string>, spaceId?: string) =>
+  app.request(
+    path,
+    {
+      method: "POST",
+      body: new URLSearchParams(form),
+      headers: { origin: ORIGIN, ...(spaceId ? { cookie: `space_id=${spaceId}` } : {}) },
+    },
+    env,
+  );
+
+const milk = { name: "牛乳", expires_on: "2026-10-05", kind: "use_by", memo: "" };
+
+/** フォームから 1 件登録し、発行されたスペースを返す */
+const newSpaceWith = async (form: Record<string, string> = milk): Promise<string> => {
+  const res = await post("/items", form);
+  expect(res.status).toBe(303);
+  const id = spaceCookie(res);
+  if (!id) throw new Error("space_id Cookie がありません");
+  return id;
+};
+
+const itemIds = async (spaceId: string): Promise<string[]> =>
+  (
+    (await (
+      await app.request("/api/items", { headers: { cookie: `space_id=${spaceId}` } }, env)
+    ).json()) as { id: string }[]
+  ).map((item) => item.id);
+
+describe("一覧", () => {
+  it("Cookie が無ければスペースを発行せず、D1 にも触れずに空の一覧を返す", async () => {
+    const res = await app.request("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.text()).toContain("まだ登録がありません");
+  });
+
+  it("スタイルは nonce 付きで CSP に許可され、エスケープされずに埋め込まれる", async () => {
+    const res = await app.request("/");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("form-action 'self'");
+    const html = await res.text();
+    expect(html).toContain(`<style nonce="${nonce}">`);
+    expect(html).not.toMatch(/&(gt|lt|quot|#39|amp);/);
+  });
+
+  it("期限日の昇順に、期限切れ・期限間近・通常を色分けして表示する", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // JST 2026-10-05 00:00
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, name: "パン", expires_on: "2026-10-08" });
+    await post("/items", { ...milk, name: "卵", expires_on: "2026-10-07" }, spaceId);
+    await post("/items", { ...milk, name: "豆腐", expires_on: "2026-10-04" }, spaceId);
+
+    const res = await get("/", spaceId);
+    expect(spaceCookie(res)).toBe(spaceId);
+    const html = await res.text();
+    const rows = [
+      ...html.matchAll(
+        /<li class="item (\w+)">.*?class="name"[^>]*>([^<]+)<.*?class="days">([^<]+)</g,
+      ),
+    ];
+    expect(rows.map((m) => m.slice(1))).toEqual([
+      ["expired", "豆腐", "1日過ぎ"],
+      ["warn", "卵", "あと2日"],
+      ["normal", "パン", "あと3日"],
+    ]);
+    expect(html).toContain("消費期限 2026-10-04");
+  });
+
+  it("warn_days の設定で期限間近の範囲が変わる", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, expires_on: "2026-10-10" });
+    expect(await (await get("/", spaceId)).text()).toContain('class="item normal"');
+    expect((await post("/settings", { warn_days: "7" }, spaceId)).status).toBe(303);
+    expect(await (await get("/", spaceId)).text()).toContain('class="item warn"');
+  });
+
+  it("商品名・メモはエスケープして表示する", async () => {
+    const spaceId = await newSpaceWith({ ...milk, name: "<script>alert(1)</script>" });
+    const html = await (await get("/", spaceId)).text();
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+});
+
+describe("追加", () => {
+  it("フォームを表示する（種別の初期値は賞味期限）", async () => {
+    const html = await (await app.request("/items/new")).text();
+    expect(html).toContain('action="/items"');
+    expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
+  it("Origin の無いフォーム送信は 403", async () => {
+    const res = await app.request(
+      "/items",
+      { method: "POST", body: new URLSearchParams(milk) },
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("別オリジンからのフォーム送信は 403", async () => {
+    const res = await app.request(
+      "/items",
+      {
+        method: "POST",
+        body: new URLSearchParams(milk),
+        headers: { origin: "https://evil.example" },
+      },
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("不正な入力は 400 で、入力値を残してエラーを表示する", async () => {
+    const res = await post("/items", {
+      name: " ",
+      expires_on: "2026-02-30",
+      kind: "x",
+      memo: "冷蔵",
+    });
+    expect(res.status).toBe(400);
+    expect(spaceCookie(res)).toBeDefined();
+    const html = await res.text();
+    for (const field of ["name", "expires_on", "kind"]) {
+      expect(html).toContain(`id="${field}-error"`);
+    }
+    expect(html).not.toContain('id="memo-error"');
+    expect(html).toContain('value="2026-02-30"');
+    expect(html).toContain("冷蔵</textarea>");
+    expect(html).toContain('aria-invalid="true"');
+  });
+
+  it("文字列以外（ファイル）の値は未入力として扱う", async () => {
+    const body = new FormData();
+    body.set("name", new File(["x"], "a.txt"));
+    body.set("expires_on", "2026-10-05");
+    body.set("kind", "best_by");
+    const res = await app.request(
+      "/items",
+      { method: "POST", body, headers: { origin: ORIGIN } },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('id="name-error"');
+  });
+});
+
+describe("編集", () => {
+  it("自分のスペースの商品はフォームに現在の値を出す", async () => {
+    const spaceId = await newSpaceWith({ ...milk, memo: "開封済み" });
+    const [id] = await itemIds(spaceId);
+    const res = await get(`/items/${id}/edit`, spaceId);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(`action="/items/${id}"`);
+    expect(html).toContain('value="牛乳"');
+    expect(html).toMatch(/value="use_by" required="" checked=""/);
+    expect(html).toContain("開封済み</textarea>");
+  });
+
+  it("メモが無ければ空のテキストエリアを出す", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    expect(await (await get(`/items/${id}/edit`, spaceId)).text()).toContain("></textarea>");
+  });
+
+  it("Cookie が無い・別スペースの商品は 404", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    const other = await newSpaceWith();
+    expect((await get(`/items/${id}/edit`)).status).toBe(404);
+    expect((await get(`/items/${id}/edit`, other)).status).toBe(404);
+  });
+
+  it("保存すると一覧に戻り、メモを空にすると消える", async () => {
+    const spaceId = await newSpaceWith({ ...milk, memo: "開封済み" });
+    const [id] = await itemIds(spaceId);
+    const res = await post(
+      `/items/${id}`,
+      { name: "低脂肪乳", expires_on: "2026-10-06", kind: "best_by", memo: "" },
+      spaceId,
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    const items = await (
+      await app.request("/api/items", { headers: { cookie: `space_id=${spaceId}` } }, env)
+    ).json();
+    expect(items).toEqual([
+      expect.objectContaining({
+        name: "低脂肪乳",
+        expires_on: "2026-10-06",
+        kind: "best_by",
+        memo: null,
+      }),
+    ]);
+  });
+
+  it("不正な入力は 400 でフォームを出し直す", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    const res = await post(`/items/${id}`, { ...milk, memo: "あ".repeat(501) }, spaceId);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('id="memo-error"');
+    expect(html).toContain(`action="/items/${id}"`);
+  });
+
+  it("別スペースの商品は更新できず 404", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    const other = await newSpaceWith();
+    expect((await post(`/items/${id}`, { ...milk, name: "乗っ取り" }, other)).status).toBe(404);
+    expect(await (await get("/", spaceId)).text()).toContain("牛乳");
+  });
+});
+
+describe("削除", () => {
+  it("確認ダイアログは popover で出し、承認のフォームだけが削除する", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    const html = await (await get("/", spaceId)).text();
+    expect(html).toContain(`popovertarget="delete-${id}"`);
+    expect(html).toContain(`<div popover="auto" id="delete-${id}">`);
+    expect(html).toContain(`action="/items/${id}/delete"`);
+  });
+
+  it("削除して一覧に戻る。別スペースからは消せない", async () => {
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    const other = await newSpaceWith();
+    expect((await post(`/items/${id}/delete`, {}, other)).status).toBe(303);
+    expect(await itemIds(spaceId)).toEqual([id]);
+    const res = await post(`/items/${id}/delete`, {}, spaceId);
+    expect(res.status).toBe(303);
+    expect(await itemIds(spaceId)).toEqual([]);
+  });
+});
+
+describe("設定", () => {
+  it("Cookie が無ければ既定の 3 日を表示し、スペースは発行しない", async () => {
+    const res = await get("/settings");
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.text()).toContain('value="3"');
+  });
+
+  it("保存した値を表示する", async () => {
+    const spaceId = await newSpaceWith();
+    await post("/settings", { warn_days: "10" }, spaceId);
+    expect(await (await get("/settings", spaceId)).text()).toContain('value="10"');
+  });
+
+  it.each([["0"], ["31"], ["1.5"], [""]])("warn_days: %j は 400", async (warn_days) => {
+    const spaceId = await newSpaceWith();
+    const res = await post("/settings", { warn_days }, spaceId);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('id="warn_days-error"');
+    expect(html).toContain(`value="${warn_days}"`);
+  });
+
+  it("warn_days が送られなければ 400", async () => {
+    expect((await post("/settings", {}, await newSpaceWith())).status).toBe(400);
+  });
+});

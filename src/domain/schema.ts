@@ -28,6 +28,9 @@ export const itemPatch = z
   })
   .refine((v) => Object.keys(v).length > 0, "更新する項目がありません");
 
+// migrations/0001_init.sql の spaces.warn_days の DEFAULT と揃える
+export const DEFAULT_WARN_DAYS = 3;
+
 export const spacePatch = z.object({
   warn_days: z.int().min(1).max(30),
 });
