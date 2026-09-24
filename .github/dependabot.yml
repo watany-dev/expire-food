@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*"]
+      vite-plus:
+        patterns: ["vite-plus", "vite", "vitest"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

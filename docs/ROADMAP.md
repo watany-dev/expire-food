@@ -1,0 +1,147 @@
+# ロードマップ
+
+[要件定義書](./requirements.md) を実装するための段階計画。各 Phase は「動くものを main に入れる」単位で区切り、どの時点で止めても壊れていない状態を保つ。
+
+## 前提と技術選定
+
+| 領域                 | 採用                          | メモ                                                                                         |
+| -------------------- | ----------------------------- | -------------------------------------------------------------------------------------------- |
+| ツールチェーン       | Vite+ (`vp`)                  | dev / build / test (Vitest) / lint (Oxlint) / fmt (Oxfmt) / 型チェック / Git hooks を一本化  |
+| パッケージマネージャ | Bun                           | `packageManager: bun@…`。`vp install` が Bun を検出して使う                                  |
+| 本番ランタイム       | Cloudflare Workers            | 要件 2 の通り。Bun はローカルのパッケージ管理・スクリプト実行に使い、本番は Workers          |
+| Web フレームワーク   | Hono + Hono JSX               | API と SSR 画面を同一 Worker で配信                                                          |
+| Vite 連携            | `@cloudflare/vite-plugin`     | `vp dev` で workerd 上の Worker を動かす。`vp build` で `wrangler deploy` 可能な成果物を出す |
+| DB                   | Cloudflare D1                 | `migrations/` を `wrangler d1 migrations` で管理                                             |
+| 画像解析             | Workers AI（Vision モデル）   | ローカル開発でも `remote: true` でリモート実行                                               |
+| レート制限           | Workers Rate Limiting binding | `EXTRACT_RATE_LIMITER`（10 回 / 60 秒）。キーは space_id                                     |
+| 入力検証             | Zod + `@hono/zod-validator`   | Phase 1 で導入（未使用のうちは knip が落とすので入れない）                                   |
+
+### Vitest の実行環境について
+
+`@cloudflare/vitest-pool-workers` は現時点で Vitest 4 系までの対応で、Vite+ 同梱の Vitest 5 では使えない。そのため当面は次の方針とする。
+
+- 純粋関数（日付正規化・表示ステータス判定など）: Node 上でそのままユニットテスト
+- ルート / API: `app.request(path, init, env)` に対して、`wrangler` の `getPlatformProxy()` で得たローカル D1 などのバインディングを渡して結合テスト
+- pool-workers が Vitest 5 に対応したら移行を検討する
+
+## ガードレール（Phase 0 で整備済み）
+
+| 仕組み                                              | 何を守るか                                               | 実行タイミング                             |
+| --------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
+| `vp check`                                          | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック | pre-commit（`vp staged`）・CI              |
+| `vp test`                                           | ユニット / 結合テスト                                    | CI                                         |
+| `vp build`                                          | Worker がバンドルできること                              | CI                                         |
+| `wrangler types --check`                            | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ   | CI                                         |
+| `wrangler d1 migrations apply --local`              | マイグレーションが素の DB に適用できること               | CI                                         |
+| knip                                                | 未使用のファイル / export / 依存                         | CI                                         |
+| Semgrep（`p/typescript`, `p/secrets`）              | 一般的な脆弱パターン・秘密情報の混入                     | CI                                         |
+| Semgrep 独自ルール（`.semgrep/`）                   | 本アプリ固有の約束事（下表）                             | CI（ルール自体も `semgrep --test` で検証） |
+| Dependabot                                          | Bun 依存と GitHub Actions の更新                         | 週次                                       |
+| Actions の SHA 固定 + `permissions: contents: read` | サプライチェーン・トークン権限の最小化                   | 常時                                       |
+
+独自 Semgrep ルール:
+
+| ルール                          | 対応する要件                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `no-math-random`                | 8.2 space_id / id は推測不能な値（`crypto.randomUUID()`）                    |
+| `d1-no-dynamic-sql`             | SQL インジェクション防止。値は必ず `.bind()`                                 |
+| `hono-no-raw-html`              | 商品名・メモ・AI 出力の XSS 防止（`raw()` / `dangerouslySetInnerHTML` 禁止） |
+| `no-logging-request-payload`    | 8.1 画像をログ出力しない                                                     |
+| `space-cookie-must-be-hardened` | 3.1 Cookie は HttpOnly / Secure / SameSite                                   |
+
+### 各 PR の完了条件（Definition of Done）
+
+- CI（check / knip / semgrep）がすべて緑
+- 追加したロジックにテストがある（特に日付処理・バリデーション・スペース分離）
+- スキーマ変更は新しいマイグレーションファイルで行い、既存ファイルは書き換えない
+- `wrangler.jsonc` を変えたら `bun run cf-typegen` で型を再生成してコミット
+
+---
+
+## Phase 0: 基盤とガードレール ✅
+
+- [x] Vite+ / Hono / Cloudflare Vite plugin / Wrangler / Bun の雛形
+- [x] `wrangler.jsonc`（D1 / AI / Rate Limiting バインディング）と型生成
+- [x] 初期マイグレーション `migrations/0001_init.sql`（要件 6.3 の DDL + `warn_days` の CHECK 制約）
+- [x] `secureHeaders` を全体に適用、`/healthz`
+- [x] 上記ガードレール一式（CI / pre-commit / knip / Semgrep / Dependabot）
+
+## Phase 1: スペースとデータ API
+
+ゴール: 画面なしで、curl から商品の登録・一覧・更新・削除とスペース設定ができる。
+
+- [ ] 本番 D1 を作成し `database_id` を反映（`wrangler d1 create expire-food`）
+- [ ] Zod スキーマ: `name`（必須・上限 100 文字）/ `expires_on`（実在する `YYYY-MM-DD`）/ `kind`（`best_by` | `use_by`）/ `memo`（任意・上限 500 文字）/ `warn_days`（1〜30）
+- [ ] スペース解決ミドルウェア
+  - URL `/s/:spaceId` → Cookie の順で解決し、D1 に存在するものだけ採用
+  - どちらもなければ `crypto.randomUUID()` で発行して `spaces` に INSERT、Cookie（HttpOnly / Secure / SameSite=Lax / 1 年）を設定
+  - URL で開いた場合は Cookie をその ID に更新（機種変更・家族共有）
+- [ ] リポジトリ層: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
+- [ ] API: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
+- [ ] JST の「今日」を返すユーティリティ（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
+- [ ] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
+
+## Phase 2: 画面（手入力で完結する MVP）
+
+ゴール: スマホで開いて、手入力だけで要件 4.2〜4.5 の操作ができる。この時点で実用可能。
+
+- [ ] 共通レイアウト（Hono JSX、スマホ縦画面前提の CSS、`viewport`）
+- [ ] 一覧: 期限日昇順、商品名 / 期限日 / 種別 / 残り日数、期限切れ=赤・`warn_days` 未満=黄
+- [ ] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証
+- [ ] 削除（確認ダイアログ → 承認時のみ削除）
+- [ ] 設定: `warn_days` の変更
+- [ ] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`）
+- [ ] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト
+
+## Phase 3: 写真からの AI 抽出
+
+ゴール: 撮影 → 読み取り結果がフォームに入る。失敗しても手入力にフォールバックできる。
+
+- [ ] クライアント: `<input type="file" accept="image/*" capture="environment">`、Canvas で長辺 800px にリサイズ・JPEG 圧縮、2MB 超は送信しない
+- [ ] `POST /api/extract`
+  - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429
+  - 画像サイズ・MIME を検証（2MB 上限）
+  - Workers AI の Vision モデルに JSON のみを返すよう指示（モデルはこの Phase で精度・無料枠の消費量を比較して決定）
+  - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）
+- [ ] AI 応答の検証・正規化（最重要。純粋関数として実装しテストを厚くする）
+  - JSON としてパースできなければ全項目 `null`
+  - 日付: `26.10.05` / `2026/10/5` / `2026.10.05` / `R8.10.5`（令和）/ `10.5`・`10月5日`（年省略）
+  - 年省略時は「今日（JST）以降で最も近い日付」で補完
+  - 存在しない日付（`2/30` など）は `null`
+  - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `best_by` + フォームで確認を促す
+  - `confidence` を返す
+- [ ] 読み取り中表示、失敗時は空欄のまま手入力できる UI
+- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、プロンプトを調整
+
+## Phase 4: 共有と PWA
+
+- [ ] 設定画面に共有 URL（`/s/{space_id}`）を表示・コピー（Clipboard API）
+- [ ] `POST /api/space/rotate`: 新 ID を発行して items を付け替え、旧 ID を削除する処理を D1 の `batch()` で一括実行。実行した端末の Cookie を新 ID に更新
+- [ ] 旧 URL / 旧 Cookie でのアクセスは新しい空スペースを作らずエラー表示にするか検討（誤って別世帯になるのを防ぐ）
+- [ ] PWA: `manifest.webmanifest`、アイコン、`display: standalone`、最小限の Service Worker（オフライン時の案内表示のみ。データはキャッシュしない）
+- [ ] iOS Safari / Android Chrome のホーム画面追加を実機で確認
+
+## Phase 5: 本番化と運用
+
+- [ ] デプロイ用ワークフロー: main への push で `vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`
+  - `CLOUDFLARE_API_TOKEN` は GitHub Environments（`production`）に置き、トークン権限は Workers / D1 / Workers AI の編集に限定
+- [ ] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）
+- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）
+- [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）
+- [ ] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
+
+---
+
+## リスクと対応
+
+| リスク                                 | 影響                                 | 対応                                                                                           |
+| -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Vite+ が RC 版                         | 破壊的変更の可能性                   | バージョンを完全固定し、Dependabot の更新は `vite-plus` / `vite` / `vitest` をまとめて検証する |
+| vitest-pool-workers が Vitest 5 非対応 | Workers ランタイム上でテストできない | `getPlatformProxy()` で代替。純粋関数を厚くしてランタイム依存部分を薄く保つ                    |
+| AI の読み取り精度                      | 期限の誤登録                         | 必ず確認フォームを経由。正規化をテストで固め、`confidence` が低い場合は UI で強調              |
+| URL が鍵                               | URL 流出で第三者が閲覧可能           | 共有 URL の再生成機能（Phase 4）、`Referrer-Policy: no-referrer`                               |
+| Workers AI の無料枠                    | 上限超過で抽出不可                   | レート制限、クライアントでの縮小、失敗時は手入力へ                                             |
+
+## 対象外（要件 9 の再掲）
+
+ログイン、通知、画像の保存・表示、消費履歴、バーコード読み取り。
