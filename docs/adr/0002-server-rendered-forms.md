@@ -24,4 +24,4 @@ Phase 2 で一覧・追加・編集・削除・設定の画面を付ける。ス
 ## 影響
 
 - クローラーや Lighthouse が `/` を開いても `spaces` は増えない。Lighthouse CI はバインディングなしで `/` を配信したまま測れる
-- Phase 3 の写真読み取りではクライアント JS が要る。その時点で CSP の `script-src` に nonce を足し、フォームは JS が無くても手入力で使える状態を保つ
+- Phase 3 の写真読み取りではクライアント JS が要る。フォームは JS が無くても手入力で使える状態を保つ（CSP は nonce ではなく `script-src 'self'` にした。[ADR 0003](./0003-photo-extraction.md)）

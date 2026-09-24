@@ -84,6 +84,12 @@ export const ItemForm = (props: {
     <>
       <h1>{props.title}</h1>
       <form method="post" action={props.action}>
+        {/* /extract.js が表示する。JS が無ければ手入力だけ（ADR 0003） */}
+        <p id="photo" hidden>
+          <label for="photo-input">写真から読み取る</label>
+          <input id="photo-input" type="file" accept="image/*" capture="environment" />
+          <span id="photo-status" role="status" />
+        </p>
         <p>
           <label for="name">商品名</label>
           <input
@@ -138,6 +144,7 @@ export const ItemForm = (props: {
           </a>
         </p>
       </form>
+      <script src="/extract.js" defer />
     </>
   );
 };
