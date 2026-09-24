@@ -1,12 +1,28 @@
 import { Hono } from "hono";
-import { secureHeaders } from "hono/secure-headers";
+import { csrf } from "hono/csrf";
+import { NONCE, secureHeaders } from "hono/secure-headers";
 
 import { api } from "./routes/api";
+import { pages } from "./routes/pages";
 import { type AppEnv, resolveSpace } from "./space";
 
 const app = new Hono<AppEnv>();
 
-app.use(secureHeaders());
+app.use(
+  secureHeaders({
+    // スクリプトは使わない。スタイルは HTML に埋め込んだ 1 つだけを nonce で許可する
+    contentSecurityPolicy: {
+      defaultSrc: ["'none'"],
+      styleSrc: [NONCE],
+      imgSrc: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'none'"],
+    },
+  }),
+);
+// フォーム送信（urlencoded / multipart / text/plain）は同一オリジンからだけ受け付ける
+app.use(csrf());
 
 app.get("/healthz", (c) => c.json({ ok: true }));
 
@@ -16,20 +32,6 @@ app.get("/s/:spaceId", resolveSpace, (c) => c.redirect("/"));
 app.use("/api/*", resolveSpace);
 app.route("/api", api);
 
-app.get("/", (c) =>
-  c.html(
-    <html lang="ja">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>期限メモ</title>
-      </head>
-      <body>
-        <h1>期限メモ</h1>
-        <p>準備中です。</p>
-      </body>
-    </html>,
-  ),
-);
+app.route("/", pages);
 
 export default app;

@@ -1,4 +1,4 @@
-import type { Item, ItemInput, ItemPatch } from "../domain/schema";
+import { DEFAULT_WARN_DAYS, type Item, type ItemInput, type ItemPatch } from "../domain/schema";
 
 // items のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
 
@@ -16,7 +16,7 @@ export const getWarnDays = async (db: D1Database, spaceId: string): Promise<numb
   (await db
     .prepare("SELECT warn_days FROM spaces WHERE id = ?")
     .bind(spaceId)
-    .first<number>("warn_days")) ?? 3;
+    .first<number>("warn_days")) ?? DEFAULT_WARN_DAYS;
 
 export const setWarnDays = async (
   db: D1Database,
@@ -82,3 +82,11 @@ export const updateItem = (
 export const deleteItem = async (db: D1Database, spaceId: string, id: string): Promise<boolean> =>
   (await db.prepare("DELETE FROM items WHERE id = ? AND space_id = ?").bind(id, spaceId).run()).meta
     .changes > 0;
+
+export const getItem = (db: D1Database, spaceId: string, id: string): Promise<Item | null> =>
+  db
+    .prepare(
+      "SELECT id, name, expires_on, kind, memo, created_at FROM items WHERE id = ? AND space_id = ?",
+    )
+    .bind(id, spaceId)
+    .first<Item>();
