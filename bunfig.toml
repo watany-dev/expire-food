@@ -1,0 +1,3 @@
+[install]
+# 公開から 7 日（秒）経っていないバージョンは解決しない。Dependabot の cooldown と揃える
+minimumReleaseAge = 604800

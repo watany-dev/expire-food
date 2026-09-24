@@ -21,15 +21,16 @@ Workers AI はローカルでもリモート実行のため、`/api/extract` を
 
 ## よく使うコマンド
 
-| コマンド             | 内容                                                       |
-| -------------------- | ---------------------------------------------------------- |
-| `bun run check`      | 整形 / lint / 型チェック（`vp check`、`--fix` で自動修正） |
-| `bun run test`       | テスト（`vp test`）                                        |
-| `bun run build`      | 本番ビルド                                                 |
-| `bun run knip`       | 未使用のファイル / export / 依存の検出                     |
-| `bun run semgrep`    | Semgrep（要 `semgrep` コマンド）                           |
-| `bun run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成 |
+| コマンド             | 内容                                                           |
+| -------------------- | -------------------------------------------------------------- |
+| `bun run check`      | 整形 / lint / 型チェック（`vp check`、`--fix` で自動修正）     |
+| `bun run test`       | テスト（`vp test`、CI では `vp test --coverage` で閾値を検査） |
+| `bun run build`      | 本番ビルド                                                     |
+| `bun run knip`       | 未使用のファイル / export / 依存の検出                         |
+| `bun run lighthouse` | Lighthouse CI（`lighthouserc.json` の閾値。要 Chrome）         |
+| `bun run semgrep`    | Semgrep（要 `semgrep` コマンド）                               |
+| `bun run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成     |
 
 ## CI で見ていること
 
-`.github/workflows/ci.yml` を参照。`vp check` / `vp test` / `vp build` / `wrangler types --check` / D1 マイグレーション適用 / knip / Semgrep（独自ルールのテスト込み）。
+`.github/workflows/` を参照。`vp check` / `vp test --coverage`（閾値付き）/ `vp build` とバンドルサイズ / `wrangler types --check` / D1 マイグレーション適用 / knip / Semgrep（独自ルールのテスト込み）/ Lighthouse CI / zghalint / CodeQL / OpenSSF Scorecard。GitHub の UI で行う設定は [docs/repository-settings.md](docs/repository-settings.md)。
