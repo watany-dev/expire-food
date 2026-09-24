@@ -24,7 +24,6 @@ const spaceCookie = (res: Response): string => {
   return match[1];
 };
 
-/** 新しいスペースを発行して、その space_id を返す */
 const newSpace = async (): Promise<string> => spaceCookie(await app.request("/api/space", {}, env));
 
 const call = (spaceId: string, path: string, init: RequestInit = {}) =>
