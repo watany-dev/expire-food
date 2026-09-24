@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv } from "../platform/test-env";
+import { createTestEnv } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;

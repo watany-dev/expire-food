@@ -89,7 +89,7 @@
 - [x] API（`src/routes/api.ts`）: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
 - [x] JST の「今日」を返すユーティリティ（`src/domain/date.ts`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
 - [x] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
-  - API の結合テストは `src/platform/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
+  - API の結合テストは `src/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
 
 ## Phase 2: 画面（手入力で完結する MVP）
 
