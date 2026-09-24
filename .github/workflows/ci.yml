@@ -112,8 +112,18 @@ jobs:
       # 閾値は lighthouserc.json。サーバーは workerd ではなく Bun で app.fetch を直接配信する
       # （リモートの AI バインディングに認証が要るため）。SSR の HTML を測る目的には十分
       # INP はラボ計測できないため、代理指標の Total Blocking Time で見る
+      # ランナー同梱の新しい Chrome だと、@lhci/cli 0.15.1 が固定している Lighthouse 12.6.1 では
+      # スクリーンショットが取れず Speed Index が SPEEDINDEX_OF_ZERO になり、Performance が NaN になる。
+      # 手元で確認済みの 141 に固定する。lhci が Lighthouse を上げたら追随する
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: 141
       - name: Lighthouse CI
         run: vp run lighthouse
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
       # 1 つでも指標がエラーになるとカテゴリのスコアは null（NaN）になり、原因がログに出ないので列挙する
       - name: Show errored audits
         if: failure()
