@@ -32,5 +32,5 @@ description: >
 ## 手順
 
 1. コメントを削る。コメント以外が変わっていないことを diff で確かめる
-2. `vp check && vp test && bunx knip` を通してコミット
+2. `vp check && vp test --coverage && bunx knip` を通してコミット
 3. TODO を issue 化し、参照の書き換えを別コミットにして push

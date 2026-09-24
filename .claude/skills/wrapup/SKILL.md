@@ -15,7 +15,7 @@ description: >
 
 ## 手順
 
-1. **CI**: `vp check && vp test && bunx knip` が通っていること。落ちていたらここで直す。
+1. **CI**: `vp check && vp test --coverage && bunx knip` が通っていること。落ちていたらここで直す。
    `semgrep` コマンドがあれば `bun run semgrep` も回す（`.semgrep/` を変えたら
    `semgrep --test --config .semgrep/expire-food.yml .semgrep/expire-food.tsx` も）。
    `wrangler.jsonc` を変えたなら `bun run cf-typegen` の差分がコミットに入っていること

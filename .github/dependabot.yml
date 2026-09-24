@@ -4,12 +4,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # 公開直後のバージョン（乗っ取られたリリースが取り下げられる前）を入れない。bunfig.toml の minimumReleaseAge と揃える
+    cooldown:
+      default-days: 7
     groups:
       cloudflare:
         patterns: ["wrangler", "@cloudflare/*"]
+      # @vitest/coverage-v8 は同梱の Vitest と完全一致させる必要があるので一緒に上げる
       vite-plus:
-        patterns: ["vite-plus", "vite", "vitest"]
+        patterns: ["vite-plus", "vite", "vitest", "@vitest/*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

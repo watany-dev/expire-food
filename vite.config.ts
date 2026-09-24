@@ -7,6 +7,28 @@ export default defineConfig(({ mode }) => ({
 
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      // src/platform/ は D1 / Workers AI / Rate Limiting のバインディングを呼ぶだけの薄い層。
+      // Node 上の vp test ではバインディングが無いので計測対象から外し、ロジックは src/domain/ に寄せる
+      exclude: ["src/**/*.test.{ts,tsx}", "src/platform/**"],
+      reporter: ["text", "html", "json-summary"],
+      thresholds: {
+        lines: 100,
+        functions: 100,
+        statements: 100,
+        branches: 95,
+        // 日付の正規化・ステータス判定・AI 応答の検証（ROADMAP で「テストを厚くする」部分）
+        "src/domain/**": {
+          perFile: true,
+          lines: 100,
+          functions: 100,
+          statements: 100,
+          branches: 100,
+        },
+      },
+    },
   },
 
   lint: {

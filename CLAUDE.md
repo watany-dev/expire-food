@@ -2,7 +2,10 @@
 
 - 仕様は `docs/requirements.md`、作業順は `docs/ROADMAP.md`。着手した Phase のチェックボックスを更新する。
 - ツールは Vite+ の `vp` を使う（`vp check` / `vp test` / `vp build`）。パッケージ追加は `bun add`。
-- 変更後は最低限 `vp check && vp test && bunx knip` を通す。
+- 変更後は最低限 `vp check && vp test --coverage && bunx knip` を通す。カバレッジ閾値（全体 100% / branches 95%、`src/domain/` はファイル単位で 100%）は下げない。
+- 純粋なロジック（日付の正規化・ステータス判定・AI 応答の検証など）は `src/domain/`、D1 / Workers AI / Rate Limiting のバインディングを呼ぶだけの薄い層は `src/platform/`（カバレッジ対象外）に置く。
+- 不安定なテストは `skip` / `retry` で通さず、原因（時刻・乱数・順序依存など）を直す。時刻は `vi.setSystemTime` で固定する。
+- GitHub の UI で行う設定（Rulesets・Secret scanning・Environments）は `docs/repository-settings.md`。
 - `wrangler.jsonc` を変えたら `bun run cf-typegen` で `worker-configuration.d.ts` を再生成してコミット。
 - スキーマ変更は `migrations/` に新しい連番ファイルを追加する（既存ファイルは編集しない）。
 - `.semgrep/expire-food.yml` のルール（SQL は `.bind()`、`Math.random` 禁止、`raw()` 禁止、リクエスト本文をログに出さない、Cookie 属性必須）に従う。ルールを変えたら `.semgrep/expire-food.tsx` のフィクスチャも更新する。

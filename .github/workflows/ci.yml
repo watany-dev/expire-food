@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # マージキューを有効化した瞬間に検証が抜けないよう、先に足しておく
+  merge_group:
+  # ランナー障害などの一時的な失敗を、空コミットなしで再実行できるようにする
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +20,7 @@ jobs:
   check:
     name: check / test / build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,15 +29,29 @@ jobs:
         with:
           node-version: "24"
           cache: true
-      - run: vp install --frozen-lockfile
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
       - name: Format / lint / type check
         run: vp check
       - name: Wrangler types are up to date
         run: vp exec wrangler types --check
-      - name: Unit tests
-        run: vp test
+      - name: Unit tests (coverage thresholds in vite.config.ts)
+        run: vp test --coverage
       - name: Build
         run: vp build
+      # Workers のスクリプト上限は gzip 後で無料プラン 3 MB / 有料 10 MB。無料プランの上限で落とし、2/3 を超えたら警告する
+      - name: Worker bundle size
+        run: |
+          size=$(find dist/expire_food -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.wasm' \) -exec cat {} + | gzip -9 | wc -c)
+          limit=$((3 * 1024 * 1024))
+          echo "Worker bundle (gzip): ${size} bytes / limit ${limit} bytes"
+          if [ "$size" -gt "$limit" ]; then
+            echo "::error::Worker bundle ${size} bytes exceeds the free-plan limit (3 MiB gzip)"
+            exit 1
+          fi
+          if [ "$size" -gt $((limit * 2 / 3)) ]; then
+            echo "::warning::Worker bundle ${size} bytes is over 2/3 of the free-plan limit"
+          fi
       - name: D1 migrations apply cleanly
         run: vp exec wrangler d1 migrations apply expire-food --local
         env:
@@ -51,8 +69,10 @@ jobs:
         with:
           node-version: "24"
           cache: true
-      - run: vp install --frozen-lockfile
-      - run: vp exec knip
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      - name: knip
+        run: vp exec knip
 
   semgrep:
     name: semgrep (SAST)
@@ -74,3 +94,38 @@ jobs:
           --config p/secrets
           --error
           --metrics=off
+
+  lighthouse:
+    name: lighthouse (mobile, perf / a11y / Core Web Vitals)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+        with:
+          node-version: "24"
+          cache: true
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      # 閾値は lighthouserc.json。サーバーは workerd ではなく Bun で app.fetch を直接配信する
+      # （リモートの AI バインディングに認証が要るため）。SSR の HTML を測る目的には十分
+      # INP はラボ計測できないため、代理指標の Total Blocking Time で見る
+      - name: Lighthouse CI
+        run: vp run lighthouse
+
+  zghalint:
+    name: zghalint (workflow lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: watany-dev/zghalint@49748850f6fa16bcb5302539425b0879275c259e # v0.0.2
+        with:
+          version: v0.0.2
+          paths: ".github/workflows/*.yml"
+          # ネットワークルールは GitHub API のレート制限で結果が揺れるため切る
+          offline: "true"

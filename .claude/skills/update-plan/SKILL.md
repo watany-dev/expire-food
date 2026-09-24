@@ -74,7 +74,7 @@ description: Validate and improve an implementation plan in plan mode by cross-c
 1. **Tidy First?**: 構造的変更と機能的変更が分離されているか
 2. **イテレーション単位**: 各ステップが「動くものを main に入れる」最小単位か
 3. **影響範囲**: `wrangler.jsonc` 変更時の `bun run cf-typegen`、Semgrep ルール変更時のフィクスチャ更新が入っているか
-4. **完了条件**: 各ステップが `vp check && vp test && bunx knip` を通す前提になっているか
+4. **完了条件**: 各ステップが `vp check && vp test --coverage && bunx knip` を通す前提になっているか
 
 ### 4-2. フィードバック反映
 

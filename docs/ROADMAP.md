@@ -26,18 +26,26 @@
 
 ## ガードレール（Phase 0 で整備済み）
 
-| 仕組み                                              | 何を守るか                                               | 実行タイミング                             |
-| --------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
-| `vp check`                                          | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック | pre-commit（`vp staged`）・CI              |
-| `vp test`                                           | ユニット / 結合テスト                                    | CI                                         |
-| `vp build`                                          | Worker がバンドルできること                              | CI                                         |
-| `wrangler types --check`                            | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ   | CI                                         |
-| `wrangler d1 migrations apply --local`              | マイグレーションが素の DB に適用できること               | CI                                         |
-| knip                                                | 未使用のファイル / export / 依存                         | CI                                         |
-| Semgrep（`p/typescript`, `p/secrets`）              | 一般的な脆弱パターン・秘密情報の混入                     | CI                                         |
-| Semgrep 独自ルール（`.semgrep/`）                   | 本アプリ固有の約束事（下表）                             | CI（ルール自体も `semgrep --test` で検証） |
-| Dependabot                                          | Bun 依存と GitHub Actions の更新                         | 週次                                       |
-| Actions の SHA 固定 + `permissions: contents: read` | サプライチェーン・トークン権限の最小化                   | 常時                                       |
+| 仕組み                                                                         | 何を守るか                                                                               | 実行タイミング                                   |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `vp check`                                                                     | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック                                 | pre-commit（`vp staged`）・CI                    |
+| `vp test`                                                                      | ユニット / 結合テスト                                                                    | CI                                               |
+| `vp build`                                                                     | Worker がバンドルできること                                                              | CI                                               |
+| `wrangler types --check`                                                       | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ                                   | CI                                               |
+| `wrangler d1 migrations apply --local`                                         | マイグレーションが素の DB に適用できること                                               | CI                                               |
+| knip                                                                           | 未使用のファイル / export / 依存                                                         | CI                                               |
+| Semgrep（`p/typescript`, `p/secrets`）                                         | 一般的な脆弱パターン・秘密情報の混入                                                     | CI                                               |
+| Semgrep 独自ルール（`.semgrep/`）                                              | 本アプリ固有の約束事（下表）                                                             | CI（ルール自体も `semgrep --test` で検証）       |
+| `vp test --coverage`（v8）                                                     | 全体 100%（branches 95%）、`src/domain/` はファイル単位で 100%。`src/platform/` は対象外 | CI                                               |
+| Worker バンドルサイズ                                                          | gzip 後 3 MiB（無料プラン上限）未満、2/3 超で警告                                        | CI                                               |
+| Lighthouse CI（`lighthouserc.json`）                                           | モバイルで Performance / Accessibility 90 以上、LCP ≤ 2.5s、CLS ≤ 0.1、TBT ≤ 200ms       | CI                                               |
+| zghalint                                                                       | ワークフロー自体のセキュリティ・ベストプラクティス                                       | CI                                               |
+| CodeQL（`security-extended`）                                                  | TypeScript と Actions の脆弱パターン                                                     | CI・週次                                         |
+| OpenSSF Scorecard                                                              | リポジトリ全体のサプライチェーン衛生（目標 7.0 以上）                                    | main への push・週次                             |
+| 依存の待機期間（Dependabot `cooldown` / `bunfig.toml` の `minimumReleaseAge`） | 公開から 7 日未満のバージョンを入れない                                                  | 常時                                             |
+| Rulesets（`.github/rulesets/main.json`）                                       | 必須チェック・承認 1 名・push で承認を外す                                               | 常時（取り込みは `docs/repository-settings.md`） |
+| Dependabot                                                                     | Bun 依存と GitHub Actions の更新                                                         | 週次                                             |
+| Actions の SHA 固定 + `permissions: contents: read`                            | サプライチェーン・トークン権限の最小化                                                   | 常時                                             |
 
 独自 Semgrep ルール:
 
@@ -51,7 +59,8 @@
 
 ### 各 PR の完了条件（Definition of Done）
 
-- CI（check / knip / semgrep）がすべて緑
+- CI（check / knip / semgrep / lighthouse / zghalint / CodeQL）がすべて緑
+- 不安定なテストは skip / retry で通さず原因を直す
 - 追加したロジックにテストがある（特に日付処理・バリデーション・スペース分離）
 - スキーマ変更は新しいマイグレーションファイルで行い、既存ファイルは書き換えない
 - `wrangler.jsonc` を変えたら `bun run cf-typegen` で型を再生成してコミット
@@ -78,7 +87,7 @@
   - URL で開いた場合は Cookie をその ID に更新（機種変更・家族共有）
 - [ ] リポジトリ層: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
 - [ ] API: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
-- [ ] JST の「今日」を返すユーティリティ（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
+- [ ] JST の「今日」を返すユーティリティ（`src/domain/`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
 - [ ] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
 
 ## Phase 2: 画面（手入力で完結する MVP）
@@ -103,7 +112,8 @@
   - 画像サイズ・MIME を検証（2MB 上限）
   - Workers AI の Vision モデルに JSON のみを返すよう指示（モデルはこの Phase で精度・無料枠の消費量を比較して決定）
   - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）
-- [ ] AI 応答の検証・正規化（最重要。純粋関数として実装しテストを厚くする）
+- [ ] AI 応答の検証・正規化（最重要。純粋関数として `src/domain/` に実装しテストを厚くする）
+  - fast-check でプロパティベーステスト（例: 正規化結果は常に実在する `YYYY-MM-DD` か `null`、年省略時は常に今日以降、同じ入力で同じ結果）。未使用だと knip が落ちるのでこの Phase で導入する
   - JSON としてパースできなければ全項目 `null`
   - 日付: `26.10.05` / `2026/10/5` / `2026.10.05` / `R8.10.5`（令和）/ `10.5`・`10月5日`（年省略）
   - 年省略時は「今日（JST）以降で最も近い日付」で補完
@@ -124,9 +134,10 @@
 ## Phase 5: 本番化と運用
 
 - [ ] デプロイ用ワークフロー: main への push で `vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`
-  - `CLOUDFLARE_API_TOKEN` は GitHub Environments（`production`）に置き、トークン権限は Workers / D1 / Workers AI の編集に限定
+  - `CLOUDFLARE_API_TOKEN` は GitHub Environments（`production`、Required reviewers 付き）に置き、トークン権限は Workers / D1 / Workers AI の編集に限定（手順は `docs/repository-settings.md`）
 - [ ] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）
 - [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）
+- [ ] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める（Cloudflare Web Analytics など）
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）
 - [ ] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
 
