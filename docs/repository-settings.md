@@ -8,7 +8,7 @@
 
 - 対象: デフォルトブランチ（`main`）
 - PR 必須、承認 1 名、**承認後に push されたら承認を外す**（`dismiss_stale_reviews_on_push`）、レビューコメントの解決必須
-- 必須チェック: `check / test / build`、`knip`、`semgrep (SAST)`、`lighthouse`、`zghalint`、`analyze (javascript-typescript)`、`analyze (actions)`
+- 必須チェック: `check / test / build`、`knip`、`semgrep (SAST)`、`e2e`、`lighthouse`、`zghalint`、`analyze (javascript-typescript)`、`analyze (actions)`
 - force push とブランチ削除を禁止
 - Admin ロールは **PR 経由に限り**バイパス可（`bypass_mode: pull_request`）。個人開発では自分の PR を自分で承認できないため。2 人目のレビュアーが入ったら `bypass_actors` を空にする（Scorecard の Branch-Protection も上がる）
 
@@ -33,6 +33,8 @@
   - **Required reviewers**: 自分（将来は 2 人目）
   - **Deployment branches**: `main` のみ
   - Secret `CLOUDFLARE_API_TOKEN` は Environment 側に置く（リポジトリ secret にしない）
+- Settings → Secrets and variables → Actions → **Variables** にリポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` を置く
+  - `deploy.yml` はこの変数が無い間ジョブを実行しない（本番 D1 を作るまで main への push を赤くしないため）。ジョブの `if` からは Environment の変数を読めないのでリポジトリ変数にする。アカウント ID は秘密情報ではない
 - Cloudflare の API トークンはカスタムトークンで、対象アカウントに限定し次の権限だけ付ける
   - Account / Workers Scripts: Edit
   - Account / D1: Edit

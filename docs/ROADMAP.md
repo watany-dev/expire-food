@@ -31,6 +31,7 @@
 | `vp check`                                                                     | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック                                 | pre-commit（`vp staged`）・CI                    |
 | `vp test`                                                                      | ユニット / 結合テスト                                                                    | CI                                               |
 | `vp build`                                                                     | Worker がバンドルできること                                                              | CI                                               |
+| Playwright（`e2e/`）                                                           | スマホ viewport での主要導線（Phase 5 で追加）                                           | CI                                               |
 | `wrangler types --check`                                                       | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ                                   | CI                                               |
 | `wrangler d1 migrations apply --local`                                         | マイグレーションが素の DB に適用できること                                               | CI                                               |
 | knip                                                                           | 未使用のファイル / export / 依存                                                         | CI                                               |
@@ -59,7 +60,7 @@
 
 ### 各 PR の完了条件（Definition of Done）
 
-- CI（check / knip / semgrep / lighthouse / zghalint / CodeQL）がすべて緑
+- CI（check / knip / semgrep / e2e / lighthouse / zghalint / CodeQL）がすべて緑
 - 不安定なテストは skip / retry で通さず原因を直す
 - 追加したロジックにテストがある（特に日付処理・バリデーション・スペース分離）
 - スキーマ変更は新しいマイグレーションファイルで行い、既存ファイルは書き換えない
@@ -136,13 +137,16 @@
 
 ## Phase 5: 本番化と運用
 
-- [ ] デプロイ用ワークフロー: main への push で `vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`
+構成は [ADR 0005](./adr/0005-deploy-and-e2e.md)。
+
+- [x] デプロイ用ワークフロー: main への push で `vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`
   - `CLOUDFLARE_API_TOKEN` は GitHub Environments（`production`、Required reviewers 付き）に置き、トークン権限は Workers / D1 / Workers AI の編集に限定（手順は `docs/repository-settings.md`）
-- [ ] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）
-- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）
+  - リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` が無い間は実行しない（本番 D1 の作成が手作業のため）
+- [x] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）。`e2e/`、CI の `e2e` ジョブ
+- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。確認は本番デプロイ後に手作業
 - [ ] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める（Cloudflare Web Analytics など）
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）
-- [ ] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
+- [x] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
 
 ---
 

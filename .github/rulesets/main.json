@@ -56,6 +56,10 @@
             "integration_id": 15368
           },
           {
+            "context": "e2e (Playwright, iPhone / Pixel)",
+            "integration_id": 15368
+          },
+          {
             "context": "zghalint (workflow lint)",
             "integration_id": 15368
           },
