@@ -149,7 +149,6 @@ jobs:
         run: vp install --frozen-lockfile
       - name: Install Chromium
         run: vp exec playwright install --with-deps chromium
-      # サーバーは Lighthouse CI と同じく Bun で app.fetch を配信し、D1 はインメモリ（e2e/server.ts）
       - name: Playwright
         run: vp run e2e
       - name: Upload Playwright report
