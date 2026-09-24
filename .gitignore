@@ -152,3 +152,7 @@ semgrep.sarif
 
 # Lighthouse CI
 .lighthouseci
+
+# Playwright
+test-results/
+playwright-report/

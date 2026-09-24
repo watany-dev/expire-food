@@ -11,6 +11,7 @@
     "test": "vp test",
     "knip": "knip",
     "lighthouse": "lhci autorun",
+    "e2e": "playwright test",
     "semgrep": "semgrep scan --config .semgrep/ --config p/typescript --config p/secrets --error",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply expire-food --local",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.58.0",
     "@lhci/cli": "0.15.1",
+    "@playwright/test": "1.63.0",
     "@vitest/coverage-v8": "5.0.1",
     "fast-check": "4.10.1",
     "knip": "6.38.0",

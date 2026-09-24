@@ -1,0 +1,48 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy (production)
+    # 本番 D1 の作成と Cloudflare の設定（docs/repository-settings.md）が済むまでは動かさない。
+    # Environment の変数はジョブの if から読めないので、リポジトリ変数で判定する
+    if: vars.CLOUDFLARE_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # 本番に出すものはキャッシュを経由させない
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+        with:
+          node-version: "24"
+          cache: false
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+      - name: Build
+        run: vp build
+      # 先にスキーマを進めるので、マイグレーションは今動いている版の Worker でも動く形にする（README「運用」）
+      - name: Apply D1 migrations
+        run: vp exec wrangler d1 migrations apply expire-food --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      # vp build が出力した .wrangler/deploy/config.json（dist/ の設定）を wrangler deploy が使う
+      - name: Deploy
+        run: vp exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
