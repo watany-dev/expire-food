@@ -114,6 +114,22 @@ jobs:
       # INP はラボ計測できないため、代理指標の Total Blocking Time で見る
       - name: Lighthouse CI
         run: vp run lighthouse
+      # 1 つでも指標がエラーになるとカテゴリのスコアは null（NaN）になり、原因がログに出ないので列挙する
+      - name: Show errored audits
+        if: failure()
+        run: |
+          for f in .lighthouseci/lhr-*.json; do
+            jq -r '.runtimeError // empty | "runtimeError: \(.code) \(.message)"' "$f"
+            jq -r '.audits[] | select(.scoreDisplayMode == "error") | "\(.id): \(.errorMessage)"' "$f"
+          done
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci/
+          retention-days: 7
+          include-hidden-files: true
 
   zghalint:
     name: zghalint (workflow lint)
