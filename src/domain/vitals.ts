@@ -10,7 +10,6 @@ const PAGES: [RegExp, string][] = [
 
 const pageLabel = (path: string) => PAGES.find(([pattern]) => pattern.test(path))?.[1] ?? "other";
 
-// 範囲外の値はその指標だけ捨て、ほかの指標は残す
 const ms = z.number().min(0).max(60_000).optional().catch(undefined);
 
 const beacon = z.object({
@@ -20,7 +19,6 @@ const beacon = z.object({
   cls: z.number().min(0).max(100).optional().catch(undefined),
 });
 
-/** `src/client/app.js` が送る計測値を検証する。不正なら null */
 export const parseVitals = (text: string) => {
   try {
     const parsed = beacon.safeParse(JSON.parse(text));
