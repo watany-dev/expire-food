@@ -12,6 +12,24 @@ export const createSpace = async (db: D1Database, spaceId: string): Promise<void
     .run();
 };
 
+// batch() は 1 トランザクション（ADR 0004）。別の端末が先に作り直していれば旧 ID は無く、何も変えずに false を返す
+export const rotateSpace = async (
+  db: D1Database,
+  oldId: string,
+  newId: string,
+): Promise<boolean> => {
+  const [inserted] = await db.batch([
+    db
+      .prepare(
+        "INSERT INTO spaces (id, warn_days, created_at) SELECT ?, warn_days, created_at FROM spaces WHERE id = ?",
+      )
+      .bind(newId, oldId),
+    db.prepare("UPDATE items SET space_id = ? WHERE space_id = ?").bind(newId, oldId),
+    db.prepare("DELETE FROM spaces WHERE id = ?").bind(oldId),
+  ]);
+  return (inserted?.meta.changes ?? 0) > 0;
+};
+
 export const getWarnDays = async (db: D1Database, spaceId: string): Promise<number> =>
   (await db
     .prepare("SELECT warn_days FROM spaces WHERE id = ?")

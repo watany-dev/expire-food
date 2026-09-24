@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv } from "../test-env";
+import { createTestEnv, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -82,11 +82,15 @@ describe("スペース解決", () => {
     expect(await (await call(shared, "/api/items")).json()).toHaveLength(1);
   });
 
-  it("存在しない共有 URL は Cookie のスペースを使う", async () => {
-    const mine = await newSpace();
-    const res = await call(mine, `/s/${crypto.randomUUID()}`);
-    expect(spaceCookie(res)).toBe(mine);
-  });
+  it.each([crypto.randomUUID(), "not-a-uuid"])(
+    "存在しない共有 URL（%s）は 404 で、Cookie を変えない",
+    async (bogus) => {
+      const res = await call(await newSpace(), `/s/${bogus}`);
+      expect(res.status).toBe(404);
+      expect(res.headers.get("set-cookie")).toBeNull();
+      expect(await res.text()).toContain("共有URLが使えません");
+    },
+  );
 
   it("/healthz と / ではスペースを発行しない", async () => {
     for (const path of ["/healthz", "/"]) {
@@ -222,6 +226,61 @@ describe("スペース分離", () => {
       body: JSON.stringify({ warn_days }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("/api/space/rotate", () => {
+  it("新しい ID に商品と設定を移し、Cookie を更新する。旧 ID は使えなくなる", async () => {
+    const old = await newSpace();
+    await postItem(old);
+    await call(old, "/api/space", { method: "PATCH", body: JSON.stringify({ warn_days: 7 }) });
+
+    const res = await call(old, "/api/space/rotate", { method: "POST" });
+    expect(res.status).toBe(200);
+    const { space_id } = (await res.json()) as { space_id: string };
+    expect(space_id).not.toBe(old);
+    expect(spaceCookie(res)).toBe(space_id);
+    expect(await (await call(space_id, "/api/items")).json()).toHaveLength(1);
+    expect(await (await call(space_id, "/api/space")).json()).toEqual({ warn_days: 7 });
+
+    expect((await call(space_id, `/s/${old}`)).status).toBe(404);
+    const stale = await call(old, "/api/items");
+    expect(spaceCookie(stale)).not.toBe(old);
+    expect(await stale.json()).toEqual([]);
+  });
+
+  it.each([undefined, "00000000-0000-4000-8000-000000000000"])(
+    "スペースが無い（Cookie: %s）なら新しく発行せず 404",
+    async (cookie) => {
+      const res = await app.request(
+        "/api/space/rotate",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(cookie ? { cookie: `space_id=${cookie}` } : {}),
+          },
+        },
+        env,
+      );
+      expect(res.status).toBe(404);
+      expect(res.headers.get("set-cookie")).toBeNull();
+    },
+  );
+
+  it("別の端末が先に作り直していたら 404 で、何も変えない", async () => {
+    const old = await newSpace();
+    await postItem(old);
+    const res = await app.request(
+      "/api/space/rotate",
+      {
+        method: "POST",
+        headers: { cookie: `space_id=${old}`, "content-type": "application/json" },
+      },
+      withRotatedAway(env, old),
+    );
+    expect(res.status).toBe(404);
+    expect(spaceCookie(res)).toBe(old);
   });
 });
 
