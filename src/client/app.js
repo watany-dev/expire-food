@@ -3,7 +3,6 @@
 // オフライン時の案内だけを出す Service Worker。登録できなくても通常どおり使える
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
-// 設定画面の共有 URL のコピー
 const copy = document.getElementById("share-copy");
 if (copy && navigator.clipboard) {
   const url = document.getElementById("share-url");

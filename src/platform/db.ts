@@ -12,8 +12,7 @@ export const createSpace = async (db: D1Database, spaceId: string): Promise<void
     .run();
 };
 
-// 新しい ID のスペースを作って items を付け替え、旧 ID を消すまでを 1 トランザクションで行う（ADR 0004）。
-// 別の端末が先に作り直していれば旧 ID は無く、何も変えずに false を返す
+// batch() は 1 トランザクション（ADR 0004）。別の端末が先に作り直していれば旧 ID は無く、何も変えずに false を返す
 export const rotateSpace = async (
   db: D1Database,
   oldId: string,

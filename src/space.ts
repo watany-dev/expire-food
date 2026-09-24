@@ -30,7 +30,6 @@ const saveSpaceCookie = (c: Context, id: string) => {
   });
 };
 
-/** 共有 URL（`/s/:spaceId`）のスペースが D1 にあれば Cookie に保存する。無ければ何もしない（ADR 0004） */
 export const openSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: string) => {
   const id = await knownSpace(c, candidate);
   if (id !== undefined) saveSpaceCookie(c, id);
@@ -38,7 +37,6 @@ export const openSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: 
 };
 
 /** Cookie のスペースを解決し、見つからなければ新しく発行する（API と書き込み系の画面） */
-// Cookie はハンドラーの後で書く。共有 URL の作り直し（ADR 0004）でハンドラーが `spaceId` を差し替えるため
 export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
   let id = await knownSpace(c, getCookie(c, SPACE_COOKIE));
   if (id === undefined) {
@@ -47,6 +45,7 @@ export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
   }
   c.set("spaceId", id);
   await next();
+  // ハンドラーの後で書く。共有 URL の作り直し（ADR 0004）でハンドラーが `spaceId` を差し替えるため
   saveSpaceCookie(c, c.var.spaceId);
 });
 

@@ -18,7 +18,6 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 画面の遷移だけを扱い、ネットワークに繋がらないときに案内ページを返す
 self.addEventListener("fetch", (event) => {
   if (event.request.mode !== "navigate") return;
   event.respondWith(
