@@ -38,7 +38,8 @@ export default defineConfig(({ mode }) => ({
       typeCheck: true,
     },
     rules: {
-      "no-console": ["error", { allow: ["warn", "error"] }],
+      // info は計測値の記録（src/routes/vitals.ts）だけに使う
+      "no-console": ["error", { allow: ["info", "warn", "error"] }],
     },
   },
 

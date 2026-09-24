@@ -56,6 +56,10 @@ bun run db:migrate:remote             # 初回だけ手元から適用しても�
 - デプロイはマイグレーションを先に適用してから Worker を差し替える。適用後・差し替え前は旧 Worker が新スキーマで動くので、列の追加は `NULL` 可か既定値付きにし、列やテーブルの削除は「使わなくする版をデプロイ → 次の版で削除」の 2 段階に分ける
 - 適用状況は `bunx wrangler d1 migrations list expire-food --remote`
 
+### 実ユーザーの Core Web Vitals
+
+各画面が離れるときに LCP / INP / CLS を `POST /api/vitals` に送り、Worker が `message: "web-vitals"` のログとして残す（[ADR 0006](docs/adr/0006-real-user-web-vitals.md)）。Cloudflare ダッシュボードの Workers → expire-food → Observability の Query Builder で `message = web-vitals` に絞り、`path` ごとに `lcp` / `inp` / `cls` の P75 を見る。
+
 ### ロールバック
 
 - Worker: `bunx wrangler deployments list` で版を確認し、`bunx wrangler rollback [version-id]` で戻す。上のとおりマイグレーションは旧版でも動く形にしているので、スキーマはそのままでよい

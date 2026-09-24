@@ -43,12 +43,12 @@
 
 ## 目標値
 
-| 指標                    | 目標                                                      | どこで見るか                                                                     |
-| ----------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| OpenSSF Scorecard       | 7.0 以上                                                  | `scorecard.yml` の結果（Security → Code scanning）                               |
-| カバレッジ              | 全体 100%（branches 95%）                                 | `vite.config.ts` の `test.coverage.thresholds`                                   |
-| `src/domain/`           | ファイル単位で 100%（branches 含む）                      | 同上                                                                             |
-| Lighthouse（モバイル）  | Performance / Accessibility 90 以上（Speed Index は除外） | `lighthouserc.json`                                                              |
-| Core Web Vitals         | LCP ≤ 2.5s、CLS ≤ 0.1、INP ≤ 200ms                        | ラボは `lighthouserc.json`（INP は TBT で代替）、実測は Phase 5 の Observability |
-| Worker バンドル（gzip） | 3 MiB 未満（2/3 超で警告）                                | CI の `Worker bundle size`                                                       |
-| PR のフィードバック時間 | 10 分以内                                                 | 各ジョブの `timeout-minutes: 10`                                                 |
+| 指標                    | 目標                                                      | どこで見るか                                                                             |
+| ----------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| OpenSSF Scorecard       | 7.0 以上                                                  | `scorecard.yml` の結果（Security → Code scanning）                                       |
+| カバレッジ              | 全体 100%（branches 95%）                                 | `vite.config.ts` の `test.coverage.thresholds`                                           |
+| `src/domain/`           | ファイル単位で 100%（branches 含む）                      | 同上                                                                                     |
+| Lighthouse（モバイル）  | Performance / Accessibility 90 以上（Speed Index は除外） | `lighthouserc.json`                                                                      |
+| Core Web Vitals         | LCP ≤ 2.5s、CLS ≤ 0.1、INP ≤ 200ms                        | ラボは `lighthouserc.json`（INP は TBT で代替）、実測は `/api/vitals` のログ（ADR 0006） |
+| Worker バンドル（gzip） | 3 MiB 未満（2/3 超で警告）                                | CI の `Worker bundle size`                                                               |
+| PR のフィードバック時間 | 10 分以内                                                 | 各ジョブの `timeout-minutes: 10`                                                         |

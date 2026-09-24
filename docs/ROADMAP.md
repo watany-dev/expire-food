@@ -144,7 +144,7 @@
   - リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` が無い間は実行しない（本番 D1 の作成が手作業のため）
 - [x] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）。`e2e/`、CI の `e2e` ジョブ
 - [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。確認は本番デプロイ後に手作業
-- [ ] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める（Cloudflare Web Analytics など）
+- [x] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める — 自前のビーコン（`/app.js` → `POST /api/vitals` → Workers Logs）。[ADR 0006](./adr/0006-real-user-web-vitals.md)
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）
 - [x] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
 
