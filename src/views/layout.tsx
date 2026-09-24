@@ -31,6 +31,8 @@ input[type=radio]{width:auto;min-height:auto;margin-right:.25rem}
 fieldset{border:0;padding:0;margin:0 0 1rem}
 fieldset label{display:inline-block;font-weight:normal;margin-right:1rem;padding:.5rem 0}
 .error{color:#b3261e;font-weight:bold}
+h2{font-size:1.2rem;margin:2rem 0 .5rem}
+.notice{padding:.75rem;border-left:.5rem solid #e0a800;background:#fff4c2}
 `;
 
 export const Layout = (props: { title: string; nonce: string | undefined; children: Child }) => (
@@ -39,8 +41,13 @@ export const Layout = (props: { title: string; nonce: string | undefined; childr
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta name="color-scheme" content="light" />
+      <meta name="theme-color" content="#0b57d0" />
+      <link rel="manifest" href="/manifest.webmanifest" />
+      <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+      <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       <title>{props.title === "期限メモ" ? props.title : `${props.title} - 期限メモ`}</title>
       <style nonce={props.nonce}>{css}</style>
+      <script src="/app.js" defer />
     </head>
     <body>
       <main>{props.children}</main>

@@ -5,12 +5,17 @@ const kindLabel = { best_by: "賞味期限", use_by: "消費期限" } as const;
 
 type ListedItem = Item & { days_left: number };
 
-export const ItemList = (props: { items: ListedItem[]; warnDays: number }) => (
+export const ItemList = (props: { items: ListedItem[]; warnDays: number; lostSpace: boolean }) => (
   <>
     <header>
       <h1>期限メモ</h1>
       <a href="/settings">設定</a>
     </header>
+    {props.lostSpace ? (
+      <p class="notice" role="alert">
+        この端末で使っていた一覧が見つかりません。共有URLが作り直された可能性があります。共有している人から新しい共有URLを受け取って開いてください（このまま追加すると別の新しい一覧になります）。
+      </p>
+    ) : null}
     <p>
       <a class="button" href="/items/new">
         ＋ 追加
@@ -149,7 +154,11 @@ export const ItemForm = (props: {
   );
 };
 
-export const Settings = (props: { warnDays: string; invalid: boolean }) => (
+export const Settings = (props: {
+  warnDays: string;
+  invalid: boolean;
+  shareUrl: string | undefined;
+}) => (
   <>
     <h1>設定</h1>
     <form method="post" action="/settings">
@@ -181,6 +190,57 @@ export const Settings = (props: { warnDays: string; invalid: boolean }) => (
         </a>
       </p>
     </form>
+    <h2>共有URL</h2>
+    {props.shareUrl === undefined ? (
+      <p>商品を登録すると共有URLが表示されます。</p>
+    ) : (
+      <ShareUrl url={props.shareUrl} />
+    )}
+  </>
+);
+
+const ShareUrl = (props: { url: string }) => (
+  <>
+    <p>
+      このURLを開いた端末で同じ一覧を使えます（家族との共有・機種変更）。URLを知っている人は誰でも見られるので、共有する相手にだけ送ってください。
+    </p>
+    <p>
+      <label for="share-url">共有URL</label>
+      <input id="share-url" readonly value={props.url} />
+    </p>
+    {/* Clipboard API が使えるときだけ /app.js が表示する。使えなければ URL を長押しでコピーする */}
+    <p class="actions">
+      <button id="share-copy" type="button" hidden>
+        コピー
+      </button>
+      <span id="share-status" role="status" />
+    </p>
+    <p>
+      <button class="secondary" type="button" popovertarget="rotate">
+        共有URLを作り直す
+      </button>
+    </p>
+    <div popover="auto" id="rotate">
+      <p>
+        今の共有URLは使えなくなり、共有している端末では新しいURLを開き直すまで一覧が見られなくなります。作り直しますか？
+      </p>
+      <form class="actions" method="post" action="/settings/rotate">
+        <button class="danger">作り直す</button>
+        <button class="secondary" type="button" popovertarget="rotate" popovertargetaction="hide">
+          やめる
+        </button>
+      </form>
+    </div>
+  </>
+);
+
+export const InvalidShareUrl = () => (
+  <>
+    <h1>共有URLが使えません</h1>
+    <p>
+      作り直されたか、URLが間違っている可能性があります。共有している人から新しい共有URLを受け取って開いてください。
+      <a href="/">一覧へ戻る</a>
+    </p>
   </>
 );
 

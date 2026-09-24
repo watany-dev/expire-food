@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv } from "../test-env";
+import { createTestEnv, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -133,12 +133,15 @@ describe("追加", () => {
     expect(html).toContain('<script src="/extract.js" defer=""></script>');
   });
 
-  it("/extract.js を毎回確認させて配信する", async () => {
-    const res = await app.request("/extract.js");
+  it.each([
+    ["/extract.js", 'fetch("/api/extract"'],
+    ["/app.js", 'register("/sw.js")'],
+  ])("%s を毎回確認させて配信する", async (path, body) => {
+    const res = await app.request(path);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("no-cache");
-    expect(await res.text()).toContain('fetch("/api/extract"');
+    expect(await res.text()).toContain(body);
   });
 
   it("Origin の無いフォーム送信は 403", async () => {
@@ -312,5 +315,84 @@ describe("設定", () => {
 
   it("warn_days が送られなければ 400", async () => {
     expect((await post("/settings", {}, await newSpaceWith())).status).toBe(400);
+  });
+});
+
+describe("共有 URL", () => {
+  it("Cookie が無ければ共有 URL を出さない", async () => {
+    const html = await (await get("/settings")).text();
+    expect(html).toContain("商品を登録すると共有URLが表示されます");
+    expect(html).not.toContain('id="share-url"');
+  });
+
+  it("自分のスペースの共有 URL を出し、コピーボタンは JS が表示するまで隠す", async () => {
+    const spaceId = await newSpaceWith();
+    const html = await (await get("/settings", spaceId)).text();
+    expect(html).toContain(`<input id="share-url" readonly="" value="${ORIGIN}/s/${spaceId}"/>`);
+    expect(html).toContain('<button id="share-copy" type="button" hidden="">');
+    expect(html).toContain('<button class="secondary" type="button" popovertarget="rotate">');
+    expect(html).toContain('<form class="actions" method="post" action="/settings/rotate">');
+  });
+
+  it("入力エラーで出し直した設定画面にも共有 URL を出す", async () => {
+    const spaceId = await newSpaceWith();
+    const html = await (await post("/settings", { warn_days: "0" }, spaceId)).text();
+    expect(html).toContain(`value="${ORIGIN}/s/${spaceId}"`);
+  });
+
+  it("作り直すと商品を新しい ID に移して設定画面に戻る。旧 URL は 404、旧 Cookie の一覧は案内を出す", async () => {
+    const old = await newSpaceWith();
+    const res = await post("/settings/rotate", {}, old);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/settings");
+    const fresh = spaceCookie(res);
+    expect(res.headers.get("set-cookie")?.match(/space_id=/g)).toHaveLength(1);
+    if (!fresh) throw new Error("space_id Cookie がありません");
+    expect(fresh).not.toBe(old);
+    expect(await itemIds(fresh)).toHaveLength(1);
+    expect(await (await get("/settings", fresh)).text()).toContain(`/s/${fresh}`);
+
+    expect((await get(`/s/${old}`)).status).toBe(404);
+    const stale = await get("/", old);
+    expect(stale.headers.get("set-cookie")).toBeNull();
+    expect(await stale.text()).toContain('<p class="notice" role="alert">');
+  });
+
+  it("作り直し済みの旧 Cookie で送っても新しいスペースを作らず一覧に戻す", async () => {
+    const old = await newSpaceWith();
+    await post("/settings/rotate", {}, old);
+    const res = await post("/settings/rotate", {}, old);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("別の端末が先に作り直していたら一覧に戻す", async () => {
+    const old = await newSpaceWith();
+    const res = await app.request(
+      "/settings/rotate",
+      { method: "POST", headers: { origin: ORIGIN, cookie: `space_id=${old}` } },
+      withRotatedAway(env, old),
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+  });
+
+  it("自分のスペースがあれば一覧に案内を出さない", async () => {
+    const html = await (await get("/", await newSpaceWith())).text();
+    expect(html).not.toContain('class="notice"');
+  });
+});
+
+describe("PWA", () => {
+  it("マニフェスト・アイコン・スクリプトを読み込み、CSP で同一オリジンだけを許可する", async () => {
+    const res = await app.request("/");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("manifest-src 'self'");
+    expect(csp).toContain("worker-src 'self'");
+    const html = await res.text();
+    expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest"/>');
+    expect(html).toContain('<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png"/>');
+    expect(html).toContain('<script src="/app.js" defer=""></script>');
   });
 });

@@ -6,7 +6,10 @@ import { spaceId as spaceIdSchema } from "./domain/schema";
 import { createSpace, spaceExists } from "./platform/db";
 
 export type AppEnv = { Bindings: Env; Variables: { spaceId: string } };
-type PageEnv = { Bindings: Env; Variables: { spaceId: string | undefined } };
+type PageEnv = {
+  Bindings: Env;
+  Variables: { spaceId: string | undefined; lostSpace: boolean };
+};
 
 const SPACE_COOKIE = "space_id";
 
@@ -15,13 +18,6 @@ const knownSpace = async <E extends { Bindings: Env }>(c: Context<E>, candidate:
   const parsed = spaceIdSchema.safeParse(candidate);
   return parsed.success && (await spaceExists(c.env.DB, parsed.data)) ? parsed.data : undefined;
 };
-
-/** URL（`/s/:spaceId`）→ Cookie の順で、D1 に存在するスペースを探す */
-const lookupSpace = async <E extends { Bindings: Env }>(
-  c: Context<E>,
-): Promise<string | undefined> =>
-  (await knownSpace(c, c.req.param("spaceId"))) ??
-  (await knownSpace(c, getCookie(c, SPACE_COOKIE)));
 
 // 使い続けている端末でスペースが消えないよう、毎回書き直して有効期限を 1 年に延ばす
 const saveSpaceCookie = (c: Context, id: string) => {
@@ -34,22 +30,35 @@ const saveSpaceCookie = (c: Context, id: string) => {
   });
 };
 
-/** スペースを解決し、見つからなければ新しく発行する（API と書き込み系の画面） */
+/** 共有 URL（`/s/:spaceId`）のスペースが D1 にあれば Cookie に保存する。無ければ何もしない（ADR 0004） */
+export const openSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: string) => {
+  const id = await knownSpace(c, candidate);
+  if (id !== undefined) saveSpaceCookie(c, id);
+  return id !== undefined;
+};
+
+/** Cookie のスペースを解決し、見つからなければ新しく発行する（API と書き込み系の画面） */
+// Cookie はハンドラーの後で書く。共有 URL の作り直し（ADR 0004）でハンドラーが `spaceId` を差し替えるため
 export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
-  let id = await lookupSpace(c);
+  let id = await knownSpace(c, getCookie(c, SPACE_COOKIE));
   if (id === undefined) {
     id = crypto.randomUUID();
     await createSpace(c.env.DB, id);
   }
-  saveSpaceCookie(c, id);
   c.set("spaceId", id);
   await next();
+  saveSpaceCookie(c, c.var.spaceId);
 });
 
-/** スペースを解決するが発行はしない（閲覧系の画面）。見つからなければ `spaceId` は undefined */
+/**
+ * Cookie のスペースを解決するが発行はしない（閲覧系の画面）。見つからなければ `spaceId` は undefined。
+ * Cookie があるのに見つからない（共有 URL が作り直された）ときは `lostSpace` を立てる
+ */
 export const findSpace = createMiddleware<PageEnv>(async (c, next) => {
-  const id = await lookupSpace(c);
-  if (id !== undefined) saveSpaceCookie(c, id);
+  const cookie = getCookie(c, SPACE_COOKIE);
+  const id = await knownSpace(c, cookie);
   c.set("spaceId", id);
+  c.set("lostSpace", id === undefined && cookie !== undefined);
   await next();
+  if (c.var.spaceId !== undefined) saveSpaceCookie(c, c.var.spaceId);
 });

@@ -19,3 +19,17 @@ export const createTestEnv = async () => {
   }
   return { env: proxy.env, dispose: proxy.dispose };
 };
+
+/** 作り直し（`batch()`）の直前に、別の端末が先に作り直して `spaceId` を消した状態を作る */
+export const withRotatedAway = (env: Env, spaceId: string): Env => ({
+  ...env,
+  DB: new Proxy(env.DB, {
+    get: (db, key) =>
+      key === "batch"
+        ? async (statements: D1PreparedStatement[]) => {
+            await db.prepare("DELETE FROM spaces WHERE id = ?").bind(spaceId).run();
+            return db.batch(statements);
+          }
+        : (Reflect.get(db, key) as () => unknown).bind(db),
+  }),
+});

@@ -8,10 +8,11 @@ import {
   getWarnDays,
   insertItem,
   listItems,
+  rotateSpace,
   setWarnDays,
   updateItem,
 } from "../platform/db";
-import type { AppEnv } from "../space";
+import { type AppEnv, findSpace } from "../space";
 
 const notFound = { error: "not_found" } as const;
 
@@ -39,3 +40,12 @@ export const api = new Hono<AppEnv>()
     await setWarnDays(c.env.DB, c.var.spaceId, warn_days);
     return c.json({ warn_days });
   });
+
+// 作り直しでは新しいスペースを発行しない（ADR 0004）。旧 Cookie の端末が空の一覧を作り直して、案内なしに別の一覧へ移るのを防ぐ
+export const rotate = new Hono<{ Bindings: Env }>().post("/", findSpace, async (c) => {
+  const old = c.var.spaceId;
+  const id = crypto.randomUUID();
+  if (old === undefined || !(await rotateSpace(c.env.DB, old, id))) return c.json(notFound, 404);
+  c.set("spaceId", id);
+  return c.json({ space_id: id });
+});
