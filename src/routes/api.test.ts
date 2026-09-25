@@ -287,35 +287,53 @@ describe("/api/space/rotate", () => {
 describe("/api/extract", () => {
   const jpeg = (size = 1024, type = "image/jpeg") =>
     new File([new Uint8Array(size)], "p.jpg", { type });
+  const chat = (reading: unknown) => ({
+    choices: [{ message: { content: JSON.stringify(reading) } }],
+  });
+  const milkReading = {
+    names: ["牛乳"],
+    dates: [{ text: "10.5", label: "消費期限" }],
+    issue: null,
+  };
 
   // expect(ai.run) だと unbound-method になるので、モックは run のまま扱う
-  const aiRun = (impl: () => Promise<unknown> = async () => ({ response: "{}" })) => vi.fn(impl);
+  const aiRun = (impl: (model: string) => Promise<unknown> = async () => chat(milkReading)) =>
+    vi.fn(impl);
   const asAi = (run: ReturnType<typeof aiRun>) => ({ run }) as unknown as Ai;
   const allow = { limit: vi.fn(async () => ({ success: true })) };
 
   const extract = async (
     image: File | string,
-    { run = aiRun(), limiter = allow, headers = {} as Record<string, string> } = {},
+    {
+      run = aiRun(),
+      limiter = allow,
+      headers = {} as Record<string, string>,
+      part = undefined as string | undefined,
+      spaceId = undefined as string | undefined,
+    } = {},
   ) => {
     const body = new FormData();
     body.append("image", image);
+    if (part !== undefined) body.append("part", part);
     return app.request(
       "/api/extract",
       {
         method: "POST",
         body,
-        headers: { cookie: `space_id=${await newSpace()}`, origin: "http://localhost", ...headers },
+        headers: {
+          cookie: `space_id=${spaceId ?? (await newSpace())}`,
+          origin: "http://localhost",
+          ...headers,
+        },
       },
       { ...env, AI: asAi(run), EXTRACT_RATE_LIMITER: limiter },
     );
   };
 
-  it("画像を data URL で渡し、応答を正規化して返す", async () => {
+  it("画像を data URL で読み取りモデルに渡し、コードで決まれば判定モデルを呼ばない", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-24T03:00:00Z"));
-    const run = aiRun(async () => ({
-      response: '{"name":"牛乳","date":"10.5","label":"消費期限","confidence":"high"}',
-    }));
+    const run = aiRun();
     const res = await extract(jpeg(3), { run });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -323,9 +341,13 @@ describe("/api/extract", () => {
       expires_on: "2026-10-05",
       kind: "use_by",
       confidence: "high",
+      next: "confirm",
+      name_candidates: [],
+      date_candidates: [],
     });
+    expect(run).toHaveBeenCalledOnce();
     expect(run).toHaveBeenCalledWith(
-      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "@cf/google/gemma-4-26b-a4b-it",
       expect.objectContaining({
         messages: [
           expect.objectContaining({ role: "system" }),
@@ -338,17 +360,73 @@ describe("/api/extract", () => {
     );
   });
 
+  it("期限の部分の再読（part=date）は再読用の指示で読み、読めなければ再撮影", async () => {
+    const run = aiRun(async () => chat({ names: [], dates: [], issue: null }));
+    const res = await extract(jpeg(), { run, part: "date" });
+    expect(await res.json()).toMatchObject({ expires_on: null, next: "retake" });
+    expect(run).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.stringContaining("close-up of the date area"),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("商品名の候補が複数なら、そのスペースに登録済みの商品名と照らし合わせる", async () => {
+    const spaceId = await newSpace();
+    await postItem(spaceId, { ...milk, name: "おいしい牛乳" });
+    const run = aiRun(async () => chat({ ...milkReading, names: ["明治", "おいしい 牛乳"] }));
+    const res = await extract(jpeg(), { run, spaceId });
+    expect(await res.json()).toMatchObject({ name: "おいしい牛乳", name_candidates: [] });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("コードで決まらなければ判定モデル（Jev）に候補から選ばせる", async () => {
+    const run = aiRun(async (model) =>
+      model === "typesafe/jev"
+        ? { answers: { name: { choice: "おいしい牛乳", confidence: 0.9 } } }
+        : chat({ ...milkReading, names: ["明治", "おいしい牛乳"] }),
+    );
+    const res = await extract(jpeg(), { run });
+    expect(await res.json()).toMatchObject({ name: "おいしい牛乳", next: "confirm" });
+    expect(run).toHaveBeenLastCalledWith(
+      "typesafe/jev",
+      expect.objectContaining({ questions: { name: expect.anything() } }),
+    );
+  });
+
+  it("判定モデルが失敗しても候補を返す", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const run = aiRun(async (model) => {
+      if (model === "typesafe/jev") throw new Error("judge unavailable");
+      return chat({ ...milkReading, names: ["明治", "おいしい牛乳"] });
+    });
+    const res = await extract(jpeg(), { run, headers: { cookie: "" } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      name: null,
+      name_candidates: ["明治", "おいしい牛乳"],
+    });
+    expect(error).toHaveBeenCalledWith("judge failed", new Error("judge unavailable"));
+    error.mockRestore();
+  });
+
   it("2MB ちょうどの画像は受け付ける", async () => {
     expect((await extract(jpeg(2 * 1024 * 1024))).status).toBe(200);
   });
 
   it.each([
-    ["2MB を超える画像", jpeg(2 * 1024 * 1024 + 1)],
-    ["画像でないファイル", jpeg(10, "text/plain")],
-    ["ファイルでない値", "not a file"],
-  ])("%s は 400 で AI を呼ばない", async (_, image) => {
+    ["2MB を超える画像", jpeg(2 * 1024 * 1024 + 1), undefined],
+    ["画像でないファイル", jpeg(10, "text/plain"), undefined],
+    ["ファイルでない値", "not a file", undefined],
+    ["知らない part", jpeg(), "name"],
+  ])("%s は 400 で AI を呼ばない", async (_, image, part) => {
     const run = aiRun();
-    expect((await extract(image, { run })).status).toBe(400);
+    expect((await extract(image, { run, part })).status).toBe(400);
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -373,7 +451,7 @@ describe("/api/extract", () => {
     expect(limiter.limit).toHaveBeenCalledWith({ key });
   });
 
-  it("AI が失敗したら 502（画像はログに出さない）", async () => {
+  it("読み取りモデルが失敗したら 502（画像はログに出さない）", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await extract(jpeg(), {
       run: aiRun(async () => {

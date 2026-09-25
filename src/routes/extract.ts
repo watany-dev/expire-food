@@ -2,9 +2,10 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 
 import { todayJst } from "../domain/date";
-import { parseExtraction } from "../domain/extract";
+import { extractItem } from "../domain/pipeline";
 import { extractForm } from "../domain/schema";
-import { runExtraction } from "../platform/ai";
+import { runJudge, runReading } from "../platform/ai";
+import { listItemNames } from "../platform/db";
 import { findSpace } from "../space";
 
 // 読み取りは書き込みではないのでスペースを発行しない（ADR 0003）。
@@ -21,9 +22,23 @@ export const extract = new Hono<{ Bindings: Env }>().post(
   },
   zValidator("form", extractForm),
   async (c) => {
+    const { image, part } = c.req.valid("form");
+    const spaceId = c.var.spaceId;
     try {
-      const response = await runExtraction(c.env.AI, c.req.valid("form").image);
-      return c.json(parseExtraction(response, todayJst()));
+      return c.json(
+        await extractItem({
+          part,
+          today: todayJst(),
+          read: () => runReading(c.env.AI, image, part),
+          // 判定に失敗しても候補を返してユーザーに選ばせる
+          judge: (input) =>
+            runJudge(c.env.AI, input).catch((error: unknown) => {
+              console.error("judge failed", error);
+              return null;
+            }),
+          knownNames: async () => (spaceId ? listItemNames(c.env.DB, spaceId) : []),
+        }),
+      );
     } catch (error) {
       // 画像は出さない（要件 8.1）。クライアントは手入力にフォールバックする
       console.error("extract failed", error);
