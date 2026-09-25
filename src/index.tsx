@@ -5,6 +5,7 @@ import { NONCE, secureHeaders } from "hono/secure-headers";
 import { api, rotate } from "./routes/api";
 import { extract } from "./routes/extract";
 import { pages } from "./routes/pages";
+import { vitals } from "./routes/vitals";
 import { type AppEnv, resolveSpace } from "./space";
 
 const app = new Hono<AppEnv>();
@@ -34,6 +35,7 @@ app.get("/healthz", (c) => c.json({ ok: true }));
 // 下の resolveSpace（スペースの発行）より先に登録し、そこへ進ませない
 app.route("/api/extract", extract);
 app.route("/api/space/rotate", rotate);
+app.route("/api/vitals", vitals);
 app.use("/api/*", resolveSpace);
 app.route("/api", api);
 

@@ -136,6 +136,7 @@ describe("追加", () => {
   it.each([
     ["/extract.js", 'fetch("/api/extract"'],
     ["/app.js", 'register("/sw.js")'],
+    ["/app.js", 'sendBeacon("/api/vitals"'],
   ])("%s を毎回確認させて配信する", async (path, body) => {
     const res = await app.request(path);
     expect(res.status).toBe(200);
