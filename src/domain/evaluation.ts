@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { Extraction } from "./extract";
 import { itemInput } from "./schema";
 
-// 写真のディレクトリに置く expected.json: { "<ファイル名>": { name, expires_on, kind } }
 export const evalCases = z.record(
   z.string(),
   itemInput.pick({ name: true, expires_on: true, kind: true }),
@@ -19,7 +18,6 @@ export type EvalResult = { file: string; expected: EvalCase } & (
 const runResponse = z.object({ result: z.object({ response: z.unknown() }) });
 const runErrors = z.object({ errors: z.array(z.object({ message: z.string() })).min(1) });
 
-/** Workers AI の REST API（`/ai/run/{model}`）の応答からモデルの出力を取り出す */
 export const parseRunResponse = (body: unknown): unknown => {
   const parsed = runResponse.safeParse(body);
   if (parsed.success) return parsed.data.result.response;
