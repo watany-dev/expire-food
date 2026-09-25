@@ -23,10 +23,23 @@ describe("evalCases", () => {
 
 describe("parseRunResponse", () => {
   it("result.response を返す（文字列でもオブジェクトでもそのまま）", () => {
-    expect(parseRunResponse({ success: true, result: { response: '{"name":"牛乳"}' } })).toBe(
-      '{"name":"牛乳"}',
+    expect(parseRunResponse({ success: true, result: { response: '{"name":"牛乳"}' } })).toEqual({
+      response: '{"name":"牛乳"}',
+    });
+    expect(parseRunResponse({ result: { response: { name: "牛乳" } } })).toEqual({
+      response: { name: "牛乳" },
+    });
+  });
+
+  it("トークン数があれば一緒に返し、形が違えば無視する", () => {
+    const usage = { prompt_tokens: 1000, completion_tokens: 50, total_tokens: 1050 };
+    expect(parseRunResponse({ result: { response: "{}", usage } })).toEqual({
+      response: "{}",
+      usage: { prompt_tokens: 1000, completion_tokens: 50 },
+    });
+    expect(parseRunResponse({ result: { response: "{}", usage: { prompt_tokens: "x" } } })).toEqual(
+      { response: "{}", usage: undefined },
     );
-    expect(parseRunResponse({ result: { response: { name: "牛乳" } } })).toEqual({ name: "牛乳" });
   });
 
   it("API のエラーはメッセージを投げる", () => {
@@ -49,7 +62,7 @@ describe("formatEval", () => {
     expect(formatEval("m", [hit("a.jpg", 1000), hit("b.jpg", 2001)])).toBe(
       [
         "m",
-        "  name 2/2  date 2/2  kind 2/2  high-confidence wrong date 0  failed 0  avg 1501 ms",
+        "  name 2/2  date 2/2  kind 2/2  high-confidence wrong date 0  failed 0  avg 1501 ms  neurons -",
       ].join("\n"),
     );
   });
@@ -85,7 +98,7 @@ describe("formatEval", () => {
     expect(formatEval("m", results)).toBe(
       [
         "m",
-        "  name 2/5  date 2/5  kind 2/5  high-confidence wrong date 1  failed 1  avg 300 ms",
+        "  name 2/5  date 2/5  kind 2/5  high-confidence wrong date 1  failed 1  avg 300 ms  neurons -",
         "  wrong.jpg: name パン ≠ 牛乳, date 2026-10-06 ≠ 2026-10-05 (high), kind best_by ≠ use_by",
         "  blank.jpg: name null ≠ 牛乳, date null ≠ 2026-10-05 (high), kind null ≠ use_by",
         "  error.jpg: HTTP 500",
@@ -97,9 +110,33 @@ describe("formatEval", () => {
     expect(formatEval("m", [{ file: "a.jpg", expected: milk, error: "boom" }])).toBe(
       [
         "m",
-        "  name 0/1  date 0/1  kind 0/1  high-confidence wrong date 0  failed 1  avg -",
+        "  name 0/1  date 0/1  kind 0/1  high-confidence wrong date 0  failed 1  avg -  neurons -",
         "  a.jpg: boom",
       ].join("\n"),
     );
+  });
+
+  it("料金表にあるモデルはトークン数から 1 枚あたりの Neurons と無料枠で読める枚数を出す", () => {
+    const usage = { prompt_tokens: 2000, completion_tokens: 100 };
+    const results = [
+      { ...hit("a.jpg", 1000), usage },
+      { ...hit("b.jpg", 1000), usage: { prompt_tokens: 4000, completion_tokens: 100 } },
+    ];
+    // (3000 × 4410 + 100 × 61493) / 1,000,000 = 19.3749
+    expect(formatEval("@cf/meta/llama-3.2-11b-vision-instruct", results)).toBe(
+      [
+        "@cf/meta/llama-3.2-11b-vision-instruct",
+        "  name 2/2  date 2/2  kind 2/2  high-confidence wrong date 0  failed 0  avg 1000 ms  neurons 19.4/image (free 516/day)",
+      ].join("\n"),
+    );
+  });
+
+  it("トークン数が欠けた結果があれば Neurons は出さない", () => {
+    const model = "@cf/meta/llama-3.2-11b-vision-instruct";
+    const usage = { prompt_tokens: 2000, completion_tokens: 100 };
+    expect(formatEval(model, [{ ...hit("a.jpg", 1000), usage }, hit("b.jpg", 1000)])).toContain(
+      "neurons -",
+    );
+    expect(formatEval(model, [hit("a.jpg", 1000)])).toContain("neurons -");
   });
 });

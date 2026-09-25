@@ -1,7 +1,7 @@
 import { extractionInput } from "../domain/extract";
 
-// 暫定。実物パッケージでの比較は bun run extract-eval（README「読み取りモデルの比較」）
-export const EXTRACT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
+// 画像を読めるモデルで Neurons が最も少ない（ADR 0003）。精度は bun run extract-eval で確かめる
+export const EXTRACT_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 
 // String.fromCharCode(...bytes) は 2MB だと引数が多すぎるので分けて渡す
 const toBase64 = (bytes: Uint8Array): string => {

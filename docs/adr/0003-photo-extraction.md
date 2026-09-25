@@ -9,8 +9,11 @@ Phase 3 で、撮影した写真から商品名・期限日・種別を読み取
 
 ## 決定
 
-- モデルは `@cf/meta/llama-4-scout-17b-16e-instruct`（画像入力と JSON モードに対応し、利用規約への同意リクエストが要らない）。ただし暫定で、実物パッケージでの精度と Neurons 消費を比べて決め直す（ROADMAP Phase 3 の残タスク）。モデル名は `src/platform/ai.ts` の 1 か所だけ
-  - 比較は `bun run extract-eval`（`scripts/extract-eval.ts`）で行う。モデルへの入力は `extractionInput`（`src/domain/extract.ts`）を本番と共有し、プロンプトを変えたときも同じスクリプトで比べ直せるようにする
+- モデルは `@cf/meta/llama-3.2-11b-vision-instruct`。画像を読める Workers AI のモデルで Neurons が最も少ない（100 万トークンあたり入力 4,410 / 出力 61,493。`llama-4-scout-17b-16e-instruct` は 24,545 / 77,273、`gemma-3-12b-it` と `mistral-small-3.1-24b-instruct` は入力が約 31,000）。写真 1 枚は入力が大半なので、入力の単価で決める。モデル名は `src/platform/ai.ts` の 1 か所だけ
+  - 当初は利用規約への同意リクエストが要らない `llama-4-scout-17b-16e-instruct` にしていたが、同意はアカウントごとに一度 `{"prompt":"agree"}` を送るだけ（README「初回」）なので、無料枠で読める枚数を優先した
+  - JSON モード（`response_format`）には対応していないが、入力には残す（無視される）。応答の前後に文章が付いても `parseExtraction` が JSON を取り出す
+  - 精度は実物パッケージで確かめる（ROADMAP Phase 3 の残タスク）。日付の誤読が多ければ、比べたうえで次に安いモデルへ切り替える
+  - 比較は `bun run extract-eval`（`scripts/extract-eval.ts`）で行い、精度と一緒に 1 枚あたりの Neurons も出す。モデルへの入力は `extractionInput`（`src/domain/extract.ts`）を本番と共有し、プロンプトを変えたときも同じスクリプトで比べ直せるようにする
 - モデルには日付を正規化させず、印字どおりの文字列（`date`）と近くの文言（`label`）を JSON で返させる。正規化・種別判定・検証は `src/domain/extract.ts` の純粋関数で行い、fast-check のプロパティテストで固める
   - JSON として読めない・型が違う項目は `null`。応答は文字列（前後に文章や ``` が付くことがある）とオブジェクトの両方を受ける
   - 日付は `YYYY.MM.DD` / `YY.MM.DD` / 令和 / `YYYY.MM`（月末）/ 年省略（今日（JST）以降で最も近い日）を読み、実在しない日付は `null`

@@ -325,7 +325,7 @@ describe("/api/extract", () => {
       confidence: "high",
     });
     expect(run).toHaveBeenCalledWith(
-      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "@cf/meta/llama-3.2-11b-vision-instruct",
       expect.objectContaining({
         messages: [
           expect.objectContaining({ role: "system" }),

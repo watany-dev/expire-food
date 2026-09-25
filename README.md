@@ -50,6 +50,13 @@ bunx wrangler d1 create expire-food   # 出力された database_id を wrangler
 bun run db:migrate:remote             # 初回だけ手元から適用してもよい（以後はデプロイで自動）
 ```
 
+読み取りモデル（`@cf/meta/llama-3.2-11b-vision-instruct`）は、アカウントごとに一度 Meta のライセンスと利用規約に同意するまで呼べない。本文を `agree` にして一度だけ呼ぶ（同意は `bun run extract-eval` にも効く）。
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run/@cf/meta/llama-3.2-11b-vision-instruct \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -d '{"prompt":"agree"}'
+```
+
 続けて [docs/repository-settings.md](docs/repository-settings.md) の「デプロイ」のとおり、`production` Environment・`CLOUDFLARE_API_TOKEN`・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` を設定する。`CLOUDFLARE_ACCOUNT_ID` が無い間はデプロイのジョブは実行されない。
 
 ### マイグレーション
@@ -86,10 +93,10 @@ ROADMAP Phase 3 の残タスク（実物パッケージでモデルとプロン�
 
 ```bash
 CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... bun run extract-eval ~/photos \
-  @cf/meta/llama-4-scout-17b-16e-instruct @cf/google/gemma-3-12b-it @cf/mistralai/mistral-small-3.1-24b-instruct
+  @cf/meta/llama-3.2-11b-vision-instruct @cf/meta/llama-4-scout-17b-16e-instruct @cf/google/gemma-3-12b-it @cf/mistralai/mistral-small-3.1-24b-instruct
 ```
 
-モデルを省くと本番のモデル（`src/platform/ai.ts`）だけを試す。本番と同じプロンプト・同じ検証（`parseExtraction`）を通し、モデルごとに商品名・期限日・種別の正解数、確信度 `high` なのに期限日を誤った数（フォームで確認を促さないので一番危ない）、平均応答時間と、外れた写真を出す。商品名はどちらかがもう一方を含めば正解とする。年省略の日付は実行した日（JST）を基準に補完されるので、正解もそのつもりで書く。トークンは Workers AI の権限だけのものを作る。Neurons はモデルごとには出ないので、1 モデルずつ実行して `bun run usage` の差分で見る。決めたモデルは `src/platform/ai.ts` の `EXTRACT_MODEL` に反映し、ADR 0003 を更新する。
+モデルを省くと本番のモデル（`src/platform/ai.ts`）だけを試す。本番と同じプロンプト・同じ検証（`parseExtraction`）を通し、モデルごとに商品名・期限日・種別の正解数、確信度 `high` なのに期限日を誤った数（フォームで確認を促さないので一番危ない）、平均応答時間、1 枚あたりの Neurons と無料枠（1 日 10,000 Neurons）で読める枚数と、外れた写真を出す。商品名はどちらかがもう一方を含めば正解とする。年省略の日付は実行した日（JST）を基準に補完されるので、正解もそのつもりで書く。トークンは Workers AI の権限だけのものを作る。Neurons は応答のトークン数と料金表（`src/domain/evaluation.ts` の `NEURONS_PER_M`）から計算するので、料金表に無いモデルやトークン数を返さないモデルは `-` になる。決めたモデルは `src/platform/ai.ts` の `EXTRACT_MODEL` に反映し、ADR 0003 を更新する。
 
 ### ロールバック
 

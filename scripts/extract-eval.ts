@@ -60,9 +60,9 @@ for (const model of models) {
         },
       );
       status = `HTTP ${res.status}`;
-      const response = parseRunResponse(await res.json().catch(() => null));
+      const { response, usage } = parseRunResponse(await res.json().catch(() => null));
       const ms = performance.now() - started;
-      results.push({ file, expected, actual: parseExtraction(response, today), ms });
+      results.push({ file, expected, actual: parseExtraction(response, today), ms, usage });
     } catch (error) {
       results.push({ file, expected, error: `${status}: ${(error as Error).message}` });
     }

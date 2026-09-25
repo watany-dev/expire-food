@@ -113,7 +113,7 @@
 - [x] `POST /api/extract`
   - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429。読み取りではスペースを発行せず、スペースが無ければ IP をキーにする
   - 画像サイズ・MIME を検証（2MB 上限、JPEG / PNG / WebP）
-  - Workers AI の Vision モデルに JSON のみを返すよう指示（暫定で `@cf/meta/llama-4-scout-17b-16e-instruct`。精度・無料枠の比較は下の実物確認で行う）
+  - Workers AI の Vision モデルに JSON のみを返すよう指示（画像を読めるモデルで最も安い `@cf/meta/llama-3.2-11b-vision-instruct`。精度は下の実物確認で確かめる）
   - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）
 - [x] AI 応答の検証・正規化（`src/domain/extract.ts`。fast-check のプロパティテスト付き）
   - JSON としてパースできなければ全項目 `null`
@@ -123,7 +123,7 @@
   - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `null` を返し、フォームの選択（追加時の初期値は `best_by`）を変えずに確認を促す
   - `confidence` を返す（低いときはフォームで確認を促す）
 - [x] 読み取り中表示、失敗時は空欄のまま手入力できる UI（JS が無ければ写真の入力欄自体を出さない）
-- [x] モデル比較用のスクリプト: `bun run extract-eval <写真のディレクトリ> [モデル...]`（`scripts/extract-eval.ts`）が Workers AI の REST API に本番と同じ入力（`extractionInput`）を送り、`parseExtraction` を通した結果を正解（`expected.json`）と比べて項目ごとの正解数・確信度が高いのに日付を誤った数・応答時間を出す。採点は `src/domain/evaluation.ts`
+- [x] モデル比較用のスクリプト: `bun run extract-eval <写真のディレクトリ> [モデル...]`（`scripts/extract-eval.ts`）が Workers AI の REST API に本番と同じ入力（`extractionInput`）を送り、`parseExtraction` を通した結果を正解（`expected.json`）と比べて項目ごとの正解数・確信度が高いのに日付を誤った数・応答時間・1 枚あたりの Neurons を出す。採点は `src/domain/evaluation.ts`
 - [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業。上のスクリプトで比べる
 
 ## Phase 4: 共有と PWA
