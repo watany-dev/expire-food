@@ -39,6 +39,7 @@
   - Account / Workers Scripts: Edit
   - Account / D1: Edit
   - Account / Workers AI: Edit（Read で足りるならそちら）
+- 無料枠の確認（`bun run usage`）には、これとは別に Account / Account Analytics: Read だけのトークンを手元で使う（GitHub には置かない）
 - SLSA provenance（署名付きビルド来歴）は配布物のある CLI 向けのため入れない
 
 ## 目標値
