@@ -169,9 +169,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # アクション内の取得はリトライしないので、Releases の一時的な 5xx でジョブが落ちる。
+      # 取得と検証（アクションと同じ SHA256SUMS 照合）をここでリトライ付きで行い、binary で渡す
+      - name: Download zghalint
+        env:
+          BASE_URL: https://github.com/watany-dev/zghalint/releases/download/v0.0.2
+          ARCHIVE: zghalint-linux-x86_64.tar.gz
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors "$BASE_URL/$ARCHIVE" -o "$ARCHIVE"
+          curl -fsSL --retry 5 --retry-all-errors "$BASE_URL/SHA256SUMS" -o SHA256SUMS
+          sha256sum --ignore-missing -c SHA256SUMS
+          tar -xzf "$ARCHIVE"
       - uses: watany-dev/zghalint@49748850f6fa16bcb5302539425b0879275c259e # v0.0.2
         with:
-          version: v0.0.2
+          binary: ./zghalint-linux-x86_64/zghalint
           paths: ".github/workflows/*.yml"
           # ネットワークルールは GitHub API のレート制限で結果が揺れるため切る
           offline: "true"
