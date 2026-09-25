@@ -22,11 +22,11 @@ describe("evalCases", () => {
 });
 
 describe("parseRunResponse", () => {
-  it("result.response を返す（文字列でもオブジェクトでもそのまま）", () => {
-    expect(parseRunResponse({ success: true, result: { response: '{"name":"牛乳"}' } })).toBe(
-      '{"name":"牛乳"}',
-    );
-    expect(parseRunResponse({ result: { response: { name: "牛乳" } } })).toEqual({ name: "牛乳" });
+  it("result をそのまま返す（中身の形は parseReading / parseJudgement が見る）", () => {
+    expect(parseRunResponse({ success: true, result: { response: '{"name":"牛乳"}' } })).toEqual({
+      response: '{"name":"牛乳"}',
+    });
+    expect(parseRunResponse({ result: { choices: [] } })).toEqual({ choices: [] });
   });
 
   it("API のエラーはメッセージを投げる", () => {
@@ -41,6 +41,7 @@ describe("parseRunResponse", () => {
   it("形の違う応答は unexpected response", () => {
     expect(() => parseRunResponse(null)).toThrow("unexpected response");
     expect(() => parseRunResponse({ errors: [] })).toThrow("unexpected response");
+    expect(() => parseRunResponse({ result: null, errors: [] })).toThrow("unexpected response");
   });
 });
 

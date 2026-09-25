@@ -86,10 +86,10 @@ ROADMAP Phase 3 の残タスク（実物パッケージでモデルとプロン�
 
 ```bash
 CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... bun run extract-eval ~/photos \
-  @cf/meta/llama-4-scout-17b-16e-instruct @cf/google/gemma-3-12b-it @cf/mistralai/mistral-small-3.1-24b-instruct
+  @cf/google/gemma-4-26b-a4b-it @cf/meta/llama-4-scout-17b-16e-instruct
 ```
 
-モデルを省くと本番のモデル（`src/platform/ai.ts`）だけを試す。本番と同じプロンプト・同じ検証（`parseExtraction`）を通し、モデルごとに商品名・期限日・種別の正解数、確信度 `high` なのに期限日を誤った数（フォームで確認を促さないので一番危ない）、平均応答時間と、外れた写真を出す。商品名はどちらかがもう一方を含めば正解とする。年省略の日付は実行した日（JST）を基準に補完されるので、正解もそのつもりで書く。トークンは Workers AI の権限だけのものを作る。Neurons はモデルごとには出ないので、1 モデルずつ実行して `bun run usage` の差分で見る。決めたモデルは `src/platform/ai.ts` の `EXTRACT_MODEL` に反映し、ADR 0003 を更新する。
+引数は読み取りモデル（段階処理の最初の段）で、省くと本番のモデル（`src/platform/ai.ts` の `READ_MODEL`）だけを試す。本番と同じ段階処理（`extractItem`。候補が複数残った写真では判定モデル `JUDGE_MODEL` も呼ぶ。登録済みの商品名は使わない）を通し、モデルごとに商品名・期限日・種別の正解数、確信度 `high` なのに期限日を誤った数（フォームで確認を促さないので一番危ない）、平均応答時間と、外れた写真を出す。商品名はどちらかがもう一方を含めば正解とする。年省略の日付は実行した日（JST）を基準に補完されるので、正解もそのつもりで書く。トークンは Workers AI の権限だけのものを作る。Neurons はモデルごとには出ないので、1 モデルずつ実行して `bun run usage` の差分で見る。決めたモデルは `src/platform/ai.ts` の `READ_MODEL` に反映し、ADR 0007 を更新する。
 
 ### ロールバック
 

@@ -54,6 +54,15 @@ export const listItems = async (db: D1Database, spaceId: string): Promise<Item[]
       .all<Item>()
   ).results;
 
+// 読み取り結果の商品名を照らし合わせる商品マスタの代わり（ADR 0007）
+export const listItemNames = async (db: D1Database, spaceId: string): Promise<string[]> =>
+  (
+    await db
+      .prepare("SELECT DISTINCT name FROM items WHERE space_id = ?")
+      .bind(spaceId)
+      .all<{ name: string }>()
+  ).results.map((row) => row.name);
+
 export const insertItem = async (
   db: D1Database,
   spaceId: string,

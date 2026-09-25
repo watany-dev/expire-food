@@ -3,11 +3,13 @@ import { extname, join } from "node:path";
 
 import { todayJst } from "../src/domain/date";
 import { type EvalResult, evalCases, formatEval, parseRunResponse } from "../src/domain/evaluation";
-import { extractionInput, parseExtraction } from "../src/domain/extract";
+import { readingInput } from "../src/domain/extract";
+import { extractItem } from "../src/domain/pipeline";
 import { extractForm } from "../src/domain/schema";
-import { EXTRACT_MODEL } from "../src/platform/ai";
+import { JUDGE_MODEL, READ_MODEL } from "../src/platform/ai";
 
-// 実物パッケージの写真で読み取りモデルを比べる（README「読み取りモデルの比較」）
+// 実物パッケージの写真で読み取りモデルを比べる（README「読み取りモデルの比較」）。
+// 本番と同じ段階処理を通すので、曖昧な候補が残った写真では判定モデル（JUDGE_MODEL）も呼ぶ
 const token = process.env.CLOUDFLARE_API_TOKEN;
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const [dir, ...args] = process.argv.slice(2);
@@ -17,7 +19,7 @@ if (!token || !account || !dir) {
   );
   process.exit(2);
 }
-const models = args.length ? args : [EXTRACT_MODEL];
+const models = args.length ? args : [READ_MODEL];
 
 const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -43,28 +45,46 @@ const images = await Promise.all(
   }),
 );
 
+const run = async (model: string, input: unknown): Promise<unknown> => {
+  let status = "network error";
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    );
+    status = `HTTP ${res.status}`;
+    return parseRunResponse(await res.json().catch(() => null));
+  } catch (error) {
+    throw new Error(`${model} ${status}: ${(error as Error).message}`, { cause: error });
+  }
+};
+
 const today = todayJst();
 for (const model of models) {
   const results: EvalResult[] = [];
   for (const { file, url } of images) {
     const expected = cases[file]!;
     const started = performance.now();
-    let status = "network error";
     try {
-      const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify(extractionInput(url)),
-        },
-      );
-      status = `HTTP ${res.status}`;
-      const response = parseRunResponse(await res.json().catch(() => null));
-      const ms = performance.now() - started;
-      results.push({ file, expected, actual: parseExtraction(response, today), ms });
+      const actual = await extractItem({
+        part: "all",
+        today,
+        read: () => run(model, readingInput(url, "all")),
+        // 本番と同じく、判定モデルの失敗は候補を返すだけにする
+        judge: (input) =>
+          run(JUDGE_MODEL, input).catch((error: unknown) => {
+            console.error(`${file}: ${(error as Error).message}`);
+            return null;
+          }),
+        knownNames: async () => [],
+      });
+      results.push({ file, expected, actual, ms: performance.now() - started });
     } catch (error) {
-      results.push({ file, expected, error: `${status}: ${(error as Error).message}` });
+      results.push({ file, expected, error: (error as Error).message });
     }
   }
   console.info(`${formatEval(model, results)}\n`);

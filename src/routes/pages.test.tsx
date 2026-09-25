@@ -129,6 +129,9 @@ describe("追加", () => {
     expect(csp).toContain("connect-src 'self'");
     const html = await res.text();
     expect(html).toContain('<p id="photo" hidden="">');
+    // 期限を囲んで再読する欄と商品名の候補も JS が使う
+    expect(html).toContain('<div id="crop" hidden="">');
+    expect(html).toContain('list="name-candidates"');
     expect(html).toContain('accept="image/*" capture="environment"');
     expect(html).toContain('<script src="/extract.js" defer=""></script>');
   });

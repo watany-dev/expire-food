@@ -12,7 +12,7 @@
 | Web フレームワーク   | Hono + Hono JSX               | API と SSR 画面を同一 Worker で配信                                                          |
 | Vite 連携            | `@cloudflare/vite-plugin`     | `vp dev` で workerd 上の Worker を動かす。`vp build` で `wrangler deploy` 可能な成果物を出す |
 | DB                   | Cloudflare D1                 | `migrations/` を `wrangler d1 migrations` で管理                                             |
-| 画像解析             | Workers AI（Vision モデル）   | ローカル開発でも `remote: true` でリモート実行                                               |
+| 画像解析             | Workers AI（Gemma 4 + Jev）   | 段階処理（ADR 0007）。ローカル開発でも `remote: true` でリモート実行                         |
 | レート制限           | Workers Rate Limiting binding | `EXTRACT_RATE_LIMITER`（10 回 / 60 秒）。キーは space_id                                     |
 | 入力検証             | Zod + `@hono/zod-validator`   | スキーマは `src/domain/schema.ts`。API は `zValidator` で検証                                |
 
@@ -113,7 +113,7 @@
 - [x] `POST /api/extract`
   - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429。読み取りではスペースを発行せず、スペースが無ければ IP をキーにする
   - 画像サイズ・MIME を検証（2MB 上限、JPEG / PNG / WebP）
-  - Workers AI の Vision モデルに JSON のみを返すよう指示（暫定で `@cf/meta/llama-4-scout-17b-16e-instruct`。精度・無料枠の比較は下の実物確認で行う）
+  - Workers AI の Vision モデルに JSON のみを返すよう指示（当初は `@cf/meta/llama-4-scout-17b-16e-instruct`。ADR 0007 で Gemma 4 + Jev の段階処理に置き換え）
   - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）
 - [x] AI 応答の検証・正規化（`src/domain/extract.ts`。fast-check のプロパティテスト付き）
   - JSON としてパースできなければ全項目 `null`
@@ -123,8 +123,11 @@
   - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `null` を返し、フォームの選択（追加時の初期値は `best_by`）を変えずに確認を促す
   - `confidence` を返す（低いときはフォームで確認を促す）
 - [x] 読み取り中表示、失敗時は空欄のまま手入力できる UI（JS が無ければ写真の入力欄自体を出さない）
-- [x] モデル比較用のスクリプト: `bun run extract-eval <写真のディレクトリ> [モデル...]`（`scripts/extract-eval.ts`）が Workers AI の REST API に本番と同じ入力（`extractionInput`）を送り、`parseExtraction` を通した結果を正解（`expected.json`）と比べて項目ごとの正解数・確信度が高いのに日付を誤った数・応答時間を出す。採点は `src/domain/evaluation.ts`
-- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業。上のスクリプトで比べる
+- [x] モデル比較用のスクリプト: `bun run extract-eval <写真のディレクトリ> [モデル...]`（`scripts/extract-eval.ts`）が Workers AI の REST API で本番と同じ段階処理（`extractItem`。ADR 0007）を通した結果を正解（`expected.json`）と比べて項目ごとの正解数・確信度が高いのに日付を誤った数・応答時間を出す。採点は `src/domain/evaluation.ts`
+- [x] 段階的な読み取り（[ADR 0007](./adr/0007-staged-extraction.md)）: Gemma 4（`@cf/google/gemma-4-26b-a4b-it`）で原文を抽出 → コードで検証（日付の成立・製造日の除外・登録済みの商品名との一致）→ 候補が複数残ったときだけ Jev（`typesafe/jev`）で選ぶ → `next` で確定 / 部分再読 / 再撮影を返す
+  - 部分再読: 期限が読めなければ、フォームで写真の期限の部分を指で囲み、縮小前の写真から切り出して `part=date` で送る。再読でも読めなければ再撮影
+  - 撮影ガイド・端末 OCR の座標からの切り出しは未実装（同じ `part=date` に送る入口として足せる）
+- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業。上のスクリプトで比べる。Jev の入出力の形（ADR 0007）もこのとき確かめる
 
 ## Phase 4: 共有と PWA
 
@@ -158,7 +161,7 @@
 | -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | Vite+ が RC 版                         | 破壊的変更の可能性                   | バージョンを完全固定し、Dependabot の更新は `vite-plus` / `vite` / `vitest` をまとめて検証する |
 | vitest-pool-workers が Vitest 5 非対応 | Workers ランタイム上でテストできない | `getPlatformProxy()` で代替。純粋関数を厚くしてランタイム依存部分を薄く保つ                    |
-| AI の読み取り精度                      | 期限の誤登録                         | 必ず確認フォームを経由。正規化をテストで固め、`confidence` が低い場合は UI で強調              |
+| AI の読み取り精度                      | 期限の誤登録                         | 必ず確認フォームを経由。原文をコードで検証し、決めきれない候補は判定モデルかユーザーが選ぶ     |
 | URL が鍵                               | URL 流出で第三者が閲覧可能           | 共有 URL の再生成機能（Phase 4）、`Referrer-Policy: no-referrer`                               |
 | Workers AI の無料枠                    | 上限超過で抽出不可                   | レート制限、クライアントでの縮小、失敗時は手入力へ                                             |
 

@@ -9,18 +9,20 @@ export const evalCases = z.record(
 );
 
 type EvalCase = z.infer<typeof evalCases>[string];
+type Actual = Pick<Extraction, "name" | "expires_on" | "kind" | "confidence">;
 
 export type EvalResult = { file: string; expected: EvalCase } & (
-  | { actual: Extraction; ms: number }
+  | { actual: Actual; ms: number }
   | { error: string }
 );
 
-const runResponse = z.object({ result: z.object({ response: z.unknown() }) });
+// エラー時も result: null が付いてくる
+const runResponse = z.object({ result: z.custom<unknown>((v) => v != null) });
 const runErrors = z.object({ errors: z.array(z.object({ message: z.string() })).min(1) });
 
 export const parseRunResponse = (body: unknown): unknown => {
   const parsed = runResponse.safeParse(body);
-  if (parsed.success) return parsed.data.result.response;
+  if (parsed.success) return parsed.data.result;
   const errors = runErrors.safeParse(body);
   throw new Error(
     errors.success ? errors.data.errors.map((e) => e.message).join("\n") : "unexpected response",
@@ -34,7 +36,7 @@ const sameName = (expected: string, actual: string | null) =>
   actual !== null &&
   (loose(actual).includes(loose(expected)) || loose(expected).includes(loose(actual)));
 
-const score = (expected: EvalCase, actual: Extraction) => ({
+const score = (expected: EvalCase, actual: Actual) => ({
   name: sameName(expected.name, actual.name),
   date: actual.expires_on === expected.expires_on,
   kind: actual.kind === expected.kind,
@@ -45,7 +47,7 @@ const score = (expected: EvalCase, actual: Extraction) => ({
     actual.expires_on !== expected.expires_on,
 });
 
-const misses = (expected: EvalCase, actual: Extraction) => {
+const misses = (expected: EvalCase, actual: Actual) => {
   const s = score(expected, actual);
   return [
     s.name ? null : `name ${actual.name} ≠ ${expected.name}`,

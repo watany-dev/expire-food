@@ -2,31 +2,114 @@ import { z } from "zod";
 
 import type { ItemInput } from "./schema";
 
+// 期限が読めない理由。写真そのものの問題なら部分再読では直らないので再撮影に進める
+const ISSUES = ["blur", "cut_off", "glare", "too_small"] as const;
+const RETAKE_ISSUES: readonly Issue[] = ["blur", "cut_off", "glare"];
+
 // モデルには日付を正規化させず、印字どおりに返させて normalizeDate で揃える（ADR 0003）
-const EXTRACT_PROMPT = `You read Japanese food packaging photos. Reply with only a JSON object with these keys:
-- "name": the product name as printed (for example "牛乳"), or null
-- "date": the expiry date exactly as printed (for example "2026.10.05", "26.10.05", "R8.10.5", "10月5日"), or null
-- "label": the label printed next to the date ("賞味期限" or "消費期限"), or null
-- "confidence": "high", "medium" or "low", how sure you are about the date`;
+const READ_PROMPT = `You read Japanese food packaging photos. Copy text exactly as printed; do not convert or guess.
+- "names": every product name printed on the package, most prominent first (for example ["おいしい牛乳", "牛乳"]). [] if none is readable
+- "dates": every date printed on the package, each with "text" (the date exactly as printed, for example "2026.10.05", "26.10.05", "R8.10.5", "10月5日") and "label" (the words printed next to it, for example "賞味期限", "消費期限", "製造日", or null). [] if none is readable
+- "issue": if a date is on the package but you cannot read it, why: "blur", "cut_off" (partly outside the photo or the print is missing), "glare", or "too_small". Otherwise null`;
+
+const REREAD_PROMPT = `${READ_PROMPT}
+This photo is a close-up of the date area, so "names" is usually [].`;
+
+const readingSchema = {
+  type: "object",
+  properties: {
+    names: { type: "array", items: { type: "string" } },
+    dates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { text: { type: "string" }, label: { type: ["string", "null"] } },
+        required: ["text", "label"],
+        additionalProperties: false,
+      },
+    },
+    issue: { type: ["string", "null"], enum: [...ISSUES, null] },
+  },
+  required: ["names", "dates", "issue"],
+  additionalProperties: false,
+};
+
+export type Part = "all" | "date";
 
 // 本番（src/platform/ai.ts）とモデル比較（scripts/extract-eval.ts）で同じ入力を使う
-export const extractionInput = (imageUrl: string) => ({
+export const readingInput = (imageUrl: string, part: Part) => ({
   messages: [
-    { role: "system" as const, content: EXTRACT_PROMPT },
+    { role: "system" as const, content: part === "date" ? REREAD_PROMPT : READ_PROMPT },
     {
       role: "user" as const,
       content: [{ type: "image_url" as const, image_url: { url: imageUrl } }],
     },
   ],
-  response_format: { type: "json_object" as const },
+  response_format: {
+    type: "json_schema" as const,
+    json_schema: { name: "package_text", schema: readingSchema, strict: true },
+  },
+  // 印字を写すだけなので考えさせない（応答時間と Neurons を抑える）
+  chat_template_kwargs: { enable_thinking: false },
   temperature: 0,
 });
 
-export type Extraction = {
-  name: string | null;
-  expires_on: string | null;
-  kind: ItemInput["kind"] | null;
-  confidence: "high" | "medium" | "low";
+type Kind = ItemInput["kind"];
+type Issue = (typeof ISSUES)[number];
+
+export type Reading = {
+  names: string[];
+  dates: { text: string; label: string }[];
+  issue: Issue | null;
+};
+
+// 型の合わない項目は「読めなかった」に倒す
+const readingOutput = z
+  .object({
+    names: z.array(z.string().catch("")).catch([]),
+    dates: z
+      .array(
+        z
+          .object({ text: z.string().catch(""), label: z.string().nullable().catch(null) })
+          .catch({ text: "", label: null }),
+      )
+      .catch([]),
+    issue: z.enum(ISSUES).nullable().catch(null),
+  })
+  .catch({ names: [], dates: [], issue: null });
+
+// Chat Completions 形式（choices[0].message.content）と旧形式（response）の両方を受ける
+const chatOutput = z.object({
+  choices: z.tuple([z.object({ message: z.object({ content: z.unknown() }) })], z.unknown()),
+});
+const legacyOutput = z.object({ response: z.unknown() });
+
+export const modelContent = (output: unknown): unknown => {
+  const chat = chatOutput.safeParse(output);
+  if (chat.success) return chat.data.choices[0].message.content;
+  const legacy = legacyOutput.safeParse(output);
+  return legacy.success ? legacy.data.response : output;
+};
+
+// 構造化出力でも、前後に文章や ``` が付いた文字列で返る場合がある
+const parseJson = (content: unknown): unknown => {
+  if (typeof content !== "string") return content;
+  try {
+    return JSON.parse(content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1));
+  } catch {
+    return null;
+  }
+};
+
+export const parseReading = (output: unknown): Reading => {
+  const { names, dates, issue } = readingOutput.parse(parseJson(modelContent(output)));
+  return {
+    names: names.map((s) => s.trim()).filter(Boolean),
+    dates: dates
+      .map((d) => ({ text: d.text.trim(), label: (d.label ?? "").trim() }))
+      .filter((d) => d.text),
+    issue,
+  };
 };
 
 const isoDate = (year: number, month: number, day: number): string | null => {
@@ -82,39 +165,96 @@ export const normalizeDate = (text: string, today: string): string | null => {
   return null;
 };
 
-export const detectKind = (text: string): Extraction["kind"] => {
+export const detectKind = (text: string): Kind | null => {
   if (/消費|use_by/i.test(text)) return "use_by";
   if (/賞味|best_by/i.test(text)) return "best_by";
   return null;
 };
 
-// 型の合わない項目は空文字（= 読めなかった）に倒す
-const aiOutput = z
-  .object({
-    name: z.string().catch(""),
-    date: z.string().catch(""),
-    label: z.string().catch(""),
-    confidence: z.enum(["high", "medium", "low"]).catch("low"),
-  })
-  .catch({ name: "", date: "", label: "", confidence: "low" });
+const isNotExpiry = (label: string) => /製造|加工|包装|採卵/.test(label);
 
-// JSON モードでもオブジェクトで返る場合と、前後に文章や ``` が付いた文字列で返る場合がある
-const parseJson = (response: unknown): unknown => {
-  if (typeof response !== "string") return response;
-  try {
-    return JSON.parse(response.slice(response.indexOf("{"), response.lastIndexOf("}") + 1));
-  } catch {
-    return null;
-  }
+const loose = (s: string) => s.normalize("NFKC").replace(/\s/g, "").toLowerCase();
+
+const uniqueBy = <T>(items: T[], key: (item: T) => string): T[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => !seen.has(key(item)) && seen.add(key(item)));
 };
 
-export const parseExtraction = (response: unknown, today: string): Extraction => {
-  const { name, date, label, confidence } = aiOutput.parse(parseJson(response));
-  return {
-    name: name.trim().slice(0, 100) || null,
-    expires_on: normalizeDate(date, today),
+type DateCandidate = { text: string; expires_on: string; kind: Kind | null };
+
+/** コードで決められるところまで決める。複数の候補が残った項目だけが判定モデルに回る */
+export type Resolution = {
+  name: string | null;
+  names: string[];
+  date: DateCandidate | null;
+  dates: DateCandidate[];
+};
+
+/**
+ * `knownNames` はスペースに登録済みの商品名（商品マスタ代わり）。
+ * 候補のうちちょうど 1 つが登録済みなら、登録済みの表記で確定する
+ */
+export const resolveReading = (
+  reading: Reading,
+  { today, knownNames }: { today: string; knownNames: string[] },
+): Resolution => {
+  const names = uniqueBy(
+    reading.names.map((s) => s.slice(0, 100)),
+    loose,
+  );
+  const known = uniqueBy(
+    knownNames.filter((k) => names.some((s) => loose(s) === loose(k))),
+    loose,
+  );
+  const name = known.length === 1 ? known[0]! : names.length === 1 ? names[0]! : null;
+
+  const valid = reading.dates.flatMap(({ text, label }) => {
+    const expiresOn = isNotExpiry(label) ? null : normalizeDate(text, today);
     // 種別の文言が日付と一緒に返ってくることもある
-    kind: detectKind(label + date),
-    confidence,
+    return expiresOn
+      ? [{ text: `${label} ${text}`.trim(), expires_on: expiresOn, kind: detectKind(label + text) }]
+      : [];
+  });
+  // 期限の文言が付いた日付があれば、付いていない日付（ロット番号の一部など）より優先する
+  const labeled = valid.filter((d) => d.kind !== null);
+  const dates = uniqueBy(labeled.length > 0 ? labeled : valid, (d) => d.expires_on);
+  return { name, names, date: dates.length === 1 ? dates[0]! : null, dates };
+};
+
+type Next = "confirm" | "reread" | "retake";
+
+export type Extraction = {
+  name: string | null;
+  expires_on: string | null;
+  kind: Kind | null;
+  confidence: "high" | "medium" | "low";
+  /** 期限が決まるか候補があれば確認へ。どちらも無ければ、写真の問題なら再撮影、そうでなければ期限の部分だけ再読 */
+  next: Next;
+  name_candidates: string[];
+  date_candidates: string[];
+};
+
+export const decide = (
+  resolution: Resolution,
+  { issue, part, judged }: { issue: Issue | null; part: Part; judged: Partial<Resolution> },
+): Extraction => {
+  const name = resolution.name ?? judged.name ?? null;
+  const date = resolution.date ?? judged.date ?? null;
+  // 候補が複数あるのは読めているということなので、再読せずにユーザーに選ばせる
+  const next: Next =
+    date || resolution.dates.length > 1
+      ? "confirm"
+      : part === "date" || (issue !== null && RETAKE_ISSUES.includes(issue))
+        ? "retake"
+        : "reread";
+  return {
+    name,
+    expires_on: date?.expires_on ?? null,
+    kind: date?.kind ?? null,
+    // 判定モデルが選んだ日付は、コードだけで決まった日付より確認を強く促す
+    confidence: resolution.date ? "high" : date ? "medium" : "low",
+    next,
+    name_candidates: name ? [] : resolution.names,
+    date_candidates: date ? [] : resolution.dates.map((d) => d.expires_on),
   };
 };

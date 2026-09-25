@@ -44,6 +44,8 @@ export const extractForm = z.object({
     .instanceof(File)
     .refine((file) => file.size <= 2 * 1024 * 1024)
     .refine((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type)),
+  // date は期限の部分だけを切り出した写真の再読（ADR 0007）
+  part: z.enum(["all", "date"]).default("all"),
 });
 
 export type ItemInput = z.infer<typeof itemInput>;

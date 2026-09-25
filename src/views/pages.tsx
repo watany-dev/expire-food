@@ -95,6 +95,18 @@ export const ItemForm = (props: {
           <input id="photo-input" type="file" accept="image/*" capture="environment" />
           <span id="photo-status" role="status" />
         </p>
+        {/* 期限が読めなかったとき、期限の部分を囲んで再読する（ADR 0007） */}
+        <div id="crop" hidden>
+          <canvas id="crop-canvas" aria-label="撮った写真。期限の部分を指でなぞって囲む" />
+          <p class="actions">
+            <button type="button" id="crop-read" disabled>
+              囲んだ部分を読み取る
+            </button>
+            <button type="button" id="crop-cancel" class="secondary">
+              やめる
+            </button>
+          </p>
+        </div>
         <p>
           <label for="name">商品名</label>
           <input
@@ -103,8 +115,11 @@ export const ItemForm = (props: {
             required
             maxlength={100}
             value={values.name}
+            list="name-candidates"
             {...invalid("name")}
           />
+          {/* 読み取りで商品名を決めきれなかったときの候補（/extract.js が入れる） */}
+          <datalist id="name-candidates" />
           <FieldError field="name" errors={errors} />
         </p>
         <p>
