@@ -2,9 +2,6 @@ import { z } from "zod";
 
 import type { ItemInput } from "./schema";
 
-// 読み取りは段階的に行う（ADR 0007）。
-// 写真 → 読み取りモデル（原文だけ返させる）→ コードで検証 → 意味的に曖昧なときだけ判定モデル → 確定 / 部分再読 / 再撮影
-
 // 期限が読めない理由。写真そのものの問題なら部分再読では直らないので再撮影に進める
 const ISSUES = ["blur", "cut_off", "glare", "too_small"] as const;
 const RETAKE_ISSUES: readonly Issue[] = ["blur", "cut_off", "glare"];
@@ -15,7 +12,6 @@ const READ_PROMPT = `You read Japanese food packaging photos. Copy text exactly 
 - "dates": every date printed on the package, each with "text" (the date exactly as printed, for example "2026.10.05", "26.10.05", "R8.10.5", "10月5日") and "label" (the words printed next to it, for example "賞味期限", "消費期限", "製造日", or null). [] if none is readable
 - "issue": if a date is on the package but you cannot read it, why: "blur", "cut_off" (partly outside the photo or the print is missing), "glare", or "too_small". Otherwise null`;
 
-// 部分再読では期限の部分だけを切り出した写真を送る
 const REREAD_PROMPT = `${READ_PROMPT}
 This photo is a close-up of the date area, so "names" is usually [].`;
 
@@ -175,7 +171,6 @@ export const detectKind = (text: string): Kind | null => {
   return null;
 };
 
-// 製造日などは期限ではない
 const isNotExpiry = (label: string) => /製造|加工|包装|採卵/.test(label);
 
 const loose = (s: string) => s.normalize("NFKC").replace(/\s/g, "").toLowerCase();
@@ -235,7 +230,6 @@ export type Extraction = {
   confidence: "high" | "medium" | "low";
   /** 期限が決まるか候補があれば確認へ。どちらも無ければ、写真の問題なら再撮影、そうでなければ期限の部分だけ再読 */
   next: Next;
-  /** 決めきれなかったときにフォームで選ばせる候補 */
   name_candidates: string[];
   date_candidates: string[];
 };

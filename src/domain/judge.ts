@@ -2,9 +2,7 @@ import { z } from "zod";
 
 import type { Reading, Resolution } from "./extract";
 
-// 判定モデル（Jev）は意味的な曖昧さだけに使う（ADR 0007）。
-// 日付として成立するか・期限の文言があるか・登録済みの商品名と一致するかはコード（resolveReading）で決め、
-// それでも候補が複数残った項目だけを Choice の質問にする
+// 判定モデル（Jev）は、コード（resolveReading）で決めきれず候補が複数残った項目だけに使う（ADR 0007）
 
 // これ未満の確信度なら選ばず、候補をフォームに出してユーザーに選ばせる
 const MIN_CONFIDENCE = 0.7;
@@ -19,7 +17,6 @@ const choice = (instructions: string, options: string[]): Choice => ({
   criteria: Object.fromEntries(options.map((o) => [o, null])),
 });
 
-/** 曖昧な項目が無ければ null（判定モデルを呼ばない） */
 export const judgeInput = (reading: Reading, resolution: Resolution): JudgeInput | null => {
   const questions: JudgeInput["questions"] = {};
   if (resolution.name === null && resolution.names.length > 1) {
@@ -52,7 +49,6 @@ const envelope = z.union([
 const picked = (a: z.infer<typeof answer> | undefined, options: string[]) =>
   a && a.confidence >= MIN_CONFIDENCE && options.includes(a.choice) ? a.choice : null;
 
-/** 判定モデルの応答から、確信度が十分で候補に含まれる選択だけを採る */
 export const parseJudgement = (output: unknown, resolution: Resolution): Partial<Resolution> => {
   const parsed = envelope.safeParse(output);
   if (!parsed.success) return {};
