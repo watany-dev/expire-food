@@ -11,7 +11,6 @@ export const FREE_TIER = {
 type Metric = keyof typeof FREE_TIER;
 type DailyUsage = { date: string } & Record<Metric, number>;
 
-// 8 割を超えたら知らせる。超えた日は読み取りなどが止まっている
 const WARN_RATIO = 0.8;
 
 // D1 のデータセットだけ日付（Date）、ほかは日時（Time）で絞り込む
