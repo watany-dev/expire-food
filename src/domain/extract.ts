@@ -3,11 +3,24 @@ import { z } from "zod";
 import type { ItemInput } from "./schema";
 
 // モデルには日付を正規化させず、印字どおりに返させて normalizeDate で揃える（ADR 0003）
-export const EXTRACT_PROMPT = `You read Japanese food packaging photos. Reply with only a JSON object with these keys:
+const EXTRACT_PROMPT = `You read Japanese food packaging photos. Reply with only a JSON object with these keys:
 - "name": the product name as printed (for example "牛乳"), or null
 - "date": the expiry date exactly as printed (for example "2026.10.05", "26.10.05", "R8.10.5", "10月5日"), or null
 - "label": the label printed next to the date ("賞味期限" or "消費期限"), or null
 - "confidence": "high", "medium" or "low", how sure you are about the date`;
+
+// 本番（src/platform/ai.ts）とモデル比較（scripts/extract-eval.ts）で同じ入力を使う
+export const extractionInput = (imageUrl: string) => ({
+  messages: [
+    { role: "system" as const, content: EXTRACT_PROMPT },
+    {
+      role: "user" as const,
+      content: [{ type: "image_url" as const, image_url: { url: imageUrl } }],
+    },
+  ],
+  response_format: { type: "json_object" as const },
+  temperature: 0,
+});
 
 export type Extraction = {
   name: string | null;

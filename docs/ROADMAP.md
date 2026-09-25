@@ -123,7 +123,8 @@
   - 種別: 「消費期限」→ `use_by`、「賞味期限」→ `best_by`、不明時は `null` を返し、フォームの選択（追加時の初期値は `best_by`）を変えずに確認を促す
   - `confidence` を返す（低いときはフォームで確認を促す）
 - [x] 読み取り中表示、失敗時は空欄のまま手入力できる UI（JS が無ければ写真の入力欄自体を出さない）
-- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業
+- [x] モデル比較用のスクリプト: `bun run extract-eval <写真のディレクトリ> [モデル...]`（`scripts/extract-eval.ts`）が Workers AI の REST API に本番と同じ入力（`extractionInput`）を送り、`parseExtraction` を通した結果を正解（`expected.json`）と比べて項目ごとの正解数・確信度が高いのに日付を誤った数・応答時間を出す。採点は `src/domain/evaluation.ts`
+- [ ] 実物パッケージ写真（牛乳・卵・パン・缶詰など）で精度を確認し、モデルとプロンプトを決める — Workers AI はリモート実行で Cloudflare の認証が要るため手作業。上のスクリプトで比べる
 
 ## Phase 4: 共有と PWA
 

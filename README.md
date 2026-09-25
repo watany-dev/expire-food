@@ -21,17 +21,18 @@ Workers AI はローカルでもリモート実行のため、`/api/extract` を
 
 ## よく使うコマンド
 
-| コマンド             | 内容                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `bun run check`      | 整形 / lint / 型チェック（`vp check`、`--fix` で自動修正）                           |
-| `bun run test`       | テスト（`vp test`、CI では `vp test --coverage` で閾値を検査）                       |
-| `bun run build`      | 本番ビルド                                                                           |
-| `bun run knip`       | 未使用のファイル / export / 依存の検出                                               |
-| `bun run e2e`        | E2E（Playwright。iPhone / Pixel の viewport。要 `bunx playwright install chromium`） |
-| `bun run lighthouse` | Lighthouse CI（`lighthouserc.json` の閾値。要 Chrome）                               |
-| `bun run semgrep`    | Semgrep（要 `semgrep` コマンド）                                                     |
-| `bun run cf-typegen` | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成                           |
-| `bun run usage`      | 無料枠の消費（直近 7 日）。下の「無料枠の確認」                                      |
+| コマンド               | 内容                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| `bun run check`        | 整形 / lint / 型チェック（`vp check`、`--fix` で自動修正）                           |
+| `bun run test`         | テスト（`vp test`、CI では `vp test --coverage` で閾値を検査）                       |
+| `bun run build`        | 本番ビルド                                                                           |
+| `bun run knip`         | 未使用のファイル / export / 依存の検出                                               |
+| `bun run e2e`          | E2E（Playwright。iPhone / Pixel の viewport。要 `bunx playwright install chromium`） |
+| `bun run lighthouse`   | Lighthouse CI（`lighthouserc.json` の閾値。要 Chrome）                               |
+| `bun run semgrep`      | Semgrep（要 `semgrep` コマンド）                                                     |
+| `bun run cf-typegen`   | `wrangler.jsonc` から `worker-configuration.d.ts` を再生成                           |
+| `bun run usage`        | 無料枠の消費（直近 7 日）。下の「無料枠の確認」                                      |
+| `bun run extract-eval` | 実物の写真で読み取りモデルを比べる。下の「読み取りモデルの比較」                     |
 
 ## CI で見ていること
 
@@ -71,6 +72,24 @@ GraphQL Analytics API から、アカウント全体の 1 日あたりの消費�
 
 - Workers AI が上限に達するとその日の読み取りは失敗し、画面は手入力に戻る（ADR 0003）。1 回あたりの Neurons は、読み取りの回数と見比べてモデル選定（Phase 3 の残タスク）の材料にする
 - Workers Logs のイベント数は 1 リクエストにつき 1〜2 件（呼び出しのログと `web-vitals` のログ）なので、リクエスト数が無料枠に収まっていれば Workers Logs の無料枠にも収まる
+
+### 読み取りモデルの比較
+
+ROADMAP Phase 3 の残タスク（実物パッケージでモデルとプロンプトを決める）用。写真（JPEG / PNG / WebP、2MB 以下。本番と揃えるなら長辺 800px 程度）と正解の `expected.json` を 1 つのディレクトリに置く。写真はリポジトリに入れない。
+
+```json
+{
+  "milk.jpg": { "name": "牛乳", "expires_on": "2026-10-05", "kind": "use_by" },
+  "bread.jpg": { "name": "食パン", "expires_on": "2026-09-28", "kind": "best_by" }
+}
+```
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... bun run extract-eval ~/photos \
+  @cf/meta/llama-4-scout-17b-16e-instruct @cf/google/gemma-3-12b-it @cf/mistralai/mistral-small-3.1-24b-instruct
+```
+
+モデルを省くと本番のモデル（`src/platform/ai.ts`）だけを試す。本番と同じプロンプト・同じ検証（`parseExtraction`）を通し、モデルごとに商品名・期限日・種別の正解数、確信度 `high` なのに期限日を誤った数（フォームで確認を促さないので一番危ない）、平均応答時間と、外れた写真を出す。商品名はどちらかがもう一方を含めば正解とする。年省略の日付は実行した日（JST）を基準に補完されるので、正解もそのつもりで書く。トークンは Workers AI の権限だけのものを作る。Neurons はモデルごとには出ないので、1 モデルずつ実行して `bun run usage` の差分で見る。決めたモデルは `src/platform/ai.ts` の `EXTRACT_MODEL` に反映し、ADR 0003 を更新する。
 
 ### ロールバック
 
