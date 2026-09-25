@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vite-plus/test";
 
-import { detectKind, normalizeDate, parseExtraction } from "./extract";
+import { detectKind, extractionInput, normalizeDate, parseExtraction } from "./extract";
 import { itemInput } from "./schema";
 
 const today = "2026-09-24";
@@ -181,5 +181,15 @@ describe("parseExtraction", () => {
         expect(parseExtraction(response, now)).toEqual(result);
       }),
     );
+  });
+});
+
+describe("extractionInput", () => {
+  it("画像を user メッセージに入れ、JSON だけを決定的に返させる", () => {
+    const input = extractionInput("data:image/jpeg;base64,AAAA");
+    expect(input.messages[1]?.content).toEqual([
+      { type: "image_url", image_url: { url: "data:image/jpeg;base64,AAAA" } },
+    ]);
+    expect(input).toMatchObject({ response_format: { type: "json_object" }, temperature: 0 });
   });
 });

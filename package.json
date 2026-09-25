@@ -17,6 +17,7 @@
     "db:migrate:local": "wrangler d1 migrations apply expire-food --local",
     "db:migrate:remote": "wrangler d1 migrations apply expire-food --remote",
     "usage": "bun scripts/usage.ts",
+    "extract-eval": "bun scripts/extract-eval.ts",
     "deploy": "vp build && wrangler deploy",
     "prepare": "vp config"
   },

@@ -10,6 +10,7 @@ Phase 3 で、撮影した写真から商品名・期限日・種別を読み取
 ## 決定
 
 - モデルは `@cf/meta/llama-4-scout-17b-16e-instruct`（画像入力と JSON モードに対応し、利用規約への同意リクエストが要らない）。ただし暫定で、実物パッケージでの精度と Neurons 消費を比べて決め直す（ROADMAP Phase 3 の残タスク）。モデル名は `src/platform/ai.ts` の 1 か所だけ
+  - 比較は `bun run extract-eval`（`scripts/extract-eval.ts`）で行う。モデルへの入力は `extractionInput`（`src/domain/extract.ts`）を本番と共有し、プロンプトを変えたときも同じスクリプトで比べ直せるようにする
 - モデルには日付を正規化させず、印字どおりの文字列（`date`）と近くの文言（`label`）を JSON で返させる。正規化・種別判定・検証は `src/domain/extract.ts` の純粋関数で行い、fast-check のプロパティテストで固める
   - JSON として読めない・型が違う項目は `null`。応答は文字列（前後に文章や ``` が付くことがある）とオブジェクトの両方を受ける
   - 日付は `YYYY.MM.DD` / `YY.MM.DD` / 令和 / `YYYY.MM`（月末）/ 年省略（今日（JST）以降で最も近い日）を読み、実在しない日付は `null`
