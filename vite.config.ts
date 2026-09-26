@@ -4,6 +4,9 @@ import { defineConfig } from "vite-plus";
 export default defineConfig(({ mode }) => ({
   // テストは Node 上で app.request() を叩くため Workers ランタイム（リモート AI 含む）は起動しない
   plugins: mode === "test" ? [] : [cloudflare()],
+  // Worker の環境（SSR 扱い）は既定で minify しない。起動時の読み込み量を減らし、
+  // スタックトレースは wrangler.jsonc の upload_source_maps で元のソースに戻す
+  environments: { expire_food: { build: { minify: true, sourcemap: true } } },
 
   test: {
     include: ["src/**/*.test.{ts,tsx}"],

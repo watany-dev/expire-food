@@ -6,6 +6,8 @@
   "observability": {
     "enabled": true,
   },
+  // バンドルを minify するので、Workers Logs のスタックトレースを元のソースで読めるようにする
+  "upload_source_maps": true,
   "d1_databases": [
     {
       "binding": "DB",
