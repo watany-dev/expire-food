@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
+import { clientKey } from "../domain/client-key";
 import { todayJst } from "../domain/date";
 import { extractItem } from "../domain/pipeline";
 import { extractForm, MAX_IMAGE_BYTES } from "../domain/schema";
@@ -14,11 +15,14 @@ import { findSpace } from "../space";
 export const extract = new Hono<{ Bindings: Env }>().post(
   "/",
   findSpace,
-  // 本文を読む前に数える（要件 8.2: space_id ごとに 1 分 10 回。スペースが無ければ IP ごと）
+  // 本文を読む前に数える（要件 8.2: space_id ごとに 1 分 10 回。スペースが無ければ IP ごと）。
+  // スペースは無料で作れるので、量産して枠を増やせないよう接続元ごとにも数え、両方の枠があるときだけ通す
   async (c, next) => {
-    const key = c.var.spaceId ?? `ip:${c.req.header("cf-connecting-ip") ?? ""}`;
-    const { success } = await c.env.EXTRACT_RATE_LIMITER.limit({ key });
-    if (!success) return c.json({ error: "rate_limited" }, 429);
+    const ip = clientKey(c.req.header("cf-connecting-ip"));
+    const allowed =
+      (await c.env.EXTRACT_RATE_LIMITER.limit({ key: c.var.spaceId ?? ip })).success &&
+      (await c.env.EXTRACT_IP_RATE_LIMITER.limit({ key: ip })).success;
+    if (!allowed) return c.json({ error: "rate_limited" }, 429);
     await next();
   },
   // multipart は全部読んでから検証されるので、読む前に止める。余裕は part と区切り線の分
