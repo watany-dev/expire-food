@@ -20,7 +20,7 @@ export const ItemList = (props: {
   // 絞り込み中は全件が同じタグなので出さない
   const tagNames = new Map(props.tag ? [] : props.tags.map((tag) => [tag.id, tag.name]));
   const row = (item: ListedItem) => (
-    <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
+    <li class={`item ${itemStatus(item.days_left, props.warnDays, item.kind)}`}>
       {/* 左にスワイプすると削除ボタンが出る。横スクロールと scroll-snap だけで作り、JS は使わない（ADR 0009） */}
       <div class="swipe">
         <a class="row" href={`/items/${item.id}/edit`}>
@@ -29,7 +29,9 @@ export const ItemList = (props: {
             {item.tag_id && tagNames.has(item.tag_id) ? (
               <span class="tag">{tagNames.get(item.tag_id)}</span>
             ) : null}
-            {kindShort[item.kind]} {shortDate(item.expires_on, props.today)}
+            {/* 色だけに頼らず、どちらの期限切れかを文言でも示す */}
+            {item.days_left < 0 ? `${kindLabel[item.kind]}切れ` : kindShort[item.kind]}{" "}
+            {shortDate(item.expires_on, props.today)}
           </span>
           <span class="days">{daysLeftLabel(item.days_left)}</span>
         </a>

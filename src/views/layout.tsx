@@ -36,6 +36,7 @@ header .title h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 details summary{min-height:44px;padding:.6rem .75rem;color:#0b57d0;font-weight:bold;cursor:pointer;border-bottom:1px solid #ddd}
 details[open] summary{display:none}
 .expired{color:#b3261e;border-left-color:#b3261e}
+.past_best{color:#5f6368;border-left-color:#9aa0a6}
 .warn{background:#fff4c2;border-left-color:#e0a800}
 [popover]{max-width:calc(100% - 2rem);padding:1rem;border:1px solid #888;border-radius:.5rem;color:#1a1a1a}
 [popover]::backdrop{background:rgb(0 0 0/.4)}
