@@ -3,9 +3,9 @@
 // オフライン時の案内だけを出す Service Worker。登録できなくても通常どおり使える
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
+const url = document.getElementById("share-url");
 const copy = document.getElementById("share-copy");
 if (copy && navigator.clipboard) {
-  const url = document.getElementById("share-url");
   const status = document.getElementById("share-status");
   copy.addEventListener("click", async () => {
     try {
@@ -16,6 +16,15 @@ if (copy && navigator.clipboard) {
     }
   });
   copy.hidden = false;
+}
+
+const send = document.getElementById("share-send");
+if (send && navigator.share) {
+  send.addEventListener("click", () => {
+    // 共有シートを閉じたときも reject されるので、何もしない
+    navigator.share({ url: url.value }).catch(() => {});
+  });
+  send.hidden = false;
 }
 
 // 実ユーザーの Core Web Vitals を、画面を離れるときに 1 回だけ送る（ADR 0006）
