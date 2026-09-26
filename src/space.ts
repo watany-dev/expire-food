@@ -8,19 +8,33 @@ import { createSpace, spaceExists } from "./platform/db";
 export type AppEnv = { Bindings: Env; Variables: { spaceId: string } };
 type PageEnv = {
   Bindings: Env;
-  Variables: { spaceId: string | undefined; lostSpace: boolean };
+  Variables: { spaceId: string | undefined };
 };
 
 const SPACE_COOKIE = "space_id";
 
+const validSpaceId = (candidate: unknown) => {
+  const parsed = spaceIdSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+};
+
 // 形式を先に確かめ、Cookie の無いリクエスト（クローラー・Lighthouse）では D1 に触れない
 const knownSpace = async <E extends { Bindings: Env }>(c: Context<E>, candidate: unknown) => {
-  const parsed = spaceIdSchema.safeParse(candidate);
-  return parsed.success && (await spaceExists(c.env.DB, parsed.data)) ? parsed.data : undefined;
+  const id = validSpaceId(candidate);
+  return id !== undefined && (await spaceExists(c.env.DB, id)) ? id : undefined;
+};
+
+/**
+ * Cookie のスペース ID を形式だけ確かめて返す（D1 には触れない）。
+ * 存在の確認は呼び出し側のクエリで兼ね、D1 との往復を 1 回にする。見つかったら saveSpaceCookie を呼ぶ
+ */
+export const spaceCookie = (c: Context) => {
+  const cookie = getCookie(c, SPACE_COOKIE);
+  return { id: validSpaceId(cookie), present: cookie !== undefined };
 };
 
 // 使い続けている端末でスペースが消えないよう、毎回書き直して有効期限を 1 年に延ばす
-const saveSpaceCookie = (c: Context, id: string) => {
+export const saveSpaceCookie = (c: Context, id: string) => {
   setCookie(c, SPACE_COOKIE, id, {
     path: "/",
     httpOnly: true,
@@ -49,15 +63,9 @@ export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
   saveSpaceCookie(c, c.var.spaceId);
 });
 
-/**
- * Cookie のスペースを解決するが発行はしない（閲覧系の画面）。見つからなければ `spaceId` は undefined。
- * Cookie があるのに見つからない（共有 URL が作り直された）ときは `lostSpace` を立てる
- */
+/** Cookie のスペースを解決するが発行はしない（閲覧系の画面）。見つからなければ `spaceId` は undefined */
 export const findSpace = createMiddleware<PageEnv>(async (c, next) => {
-  const cookie = getCookie(c, SPACE_COOKIE);
-  const id = await knownSpace(c, cookie);
-  c.set("spaceId", id);
-  c.set("lostSpace", id === undefined && cookie !== undefined);
+  c.set("spaceId", await knownSpace(c, getCookie(c, SPACE_COOKIE)));
   await next();
   if (c.var.spaceId !== undefined) saveSpaceCookie(c, c.var.spaceId);
 });

@@ -10,14 +10,14 @@ import { DEFAULT_WARN_DAYS, itemInput, spacePatch } from "../domain/schema";
 import {
   deleteItem,
   getItem,
+  getList,
   getWarnDays,
   insertItem,
-  listItems,
   rotateSpace,
   setWarnDays,
   updateItem,
 } from "../platform/db";
-import { findSpace, openSharedSpace, resolveSpace } from "../space";
+import { findSpace, openSharedSpace, resolveSpace, saveSpaceCookie, spaceCookie } from "../space";
 import { Layout } from "../views/layout";
 import {
   InvalidShareUrl,
@@ -59,30 +59,27 @@ const invalidFields = (issues: readonly { path: readonly PropertyKey[] }[]) =>
 
 // 閲覧系（GET）はスペースを発行しない。書き込み系（POST）で初めて発行する（ADR 0002）
 export const pages = new Hono<{ Bindings: Env }>()
-  .get("/", findSpace, async (c) => {
-    const spaceId = c.var.spaceId;
-    if (spaceId === undefined) {
+  // 最も開かれる画面なので、スペースの確認と一覧の読み込みを 1 回の往復にまとめる（findSpace を通さない）
+  .get("/", async (c) => {
+    const { id, present } = spaceCookie(c);
+    const list = id === undefined ? null : await getList(c.env.DB, id);
+    const today = todayJst();
+    if (id === undefined || list === null) {
       return render(
         c,
         "期限メモ",
-        <ItemList
-          items={[]}
-          warnDays={DEFAULT_WARN_DAYS}
-          today={todayJst()}
-          lostSpace={c.var.lostSpace}
-        />,
+        <ItemList items={[]} warnDays={DEFAULT_WARN_DAYS} today={today} lostSpace={present} />,
       );
     }
-    const today = todayJst();
-    const [items, warnDays] = await Promise.all([
-      listItems(c.env.DB, spaceId),
-      getWarnDays(c.env.DB, spaceId),
-    ]);
-    const listed = items.map((item) => ({ ...item, days_left: daysUntil(item.expires_on, today) }));
+    saveSpaceCookie(c, id);
+    const listed = list.items.map((item) => ({
+      ...item,
+      days_left: daysUntil(item.expires_on, today),
+    }));
     return render(
       c,
       "期限メモ",
-      <ItemList items={listed} warnDays={warnDays} today={today} lostSpace={false} />,
+      <ItemList items={listed} warnDays={list.warnDays} today={today} lostSpace={false} />,
     );
   })
   // 共有 URL。スペースを Cookie に保存して一覧へ戻す（機種変更・家族共有）。
@@ -144,15 +141,22 @@ export const pages = new Hono<{ Bindings: Env }>()
     await deleteItem(c.env.DB, c.var.spaceId, c.req.param("id"));
     return c.redirect("/", 303);
   })
-  .get("/settings", findSpace, async (c) => {
-    const spaceId = c.var.spaceId;
-    const warnDays =
-      spaceId === undefined ? DEFAULT_WARN_DAYS : await getWarnDays(c.env.DB, spaceId);
-    const url = spaceId === undefined ? undefined : shareUrl(c, spaceId);
+  // warn_days の読み込みでスペースの確認を兼ねる（findSpace を通さない）
+  .get("/settings", async (c) => {
+    const { id } = spaceCookie(c);
+    const warnDays = id === undefined ? null : await getWarnDays(c.env.DB, id);
+    if (id === undefined || warnDays === null) {
+      return render(
+        c,
+        "設定",
+        <Settings warnDays={String(DEFAULT_WARN_DAYS)} invalid={false} shareUrl={undefined} />,
+      );
+    }
+    saveSpaceCookie(c, id);
     return render(
       c,
       "設定",
-      <Settings warnDays={String(warnDays)} invalid={false} shareUrl={url} />,
+      <Settings warnDays={String(warnDays)} invalid={false} shareUrl={shareUrl(c, id)} />,
     );
   })
   .post("/settings", resolveSpace, async (c) => {

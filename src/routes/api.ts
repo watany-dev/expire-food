@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 
 import { daysUntil, todayJst } from "../domain/date";
-import { itemInput, itemPatch, spacePatch } from "../domain/schema";
+import { DEFAULT_WARN_DAYS, itemInput, itemPatch, spacePatch } from "../domain/schema";
 import {
   deleteItem,
   getWarnDays,
@@ -34,7 +34,9 @@ export const api = new Hono<AppEnv>()
       ? c.body(null, 204)
       : c.json(notFound, 404),
   )
-  .get("/space", async (c) => c.json({ warn_days: await getWarnDays(c.env.DB, c.var.spaceId) }))
+  .get("/space", async (c) =>
+    c.json({ warn_days: (await getWarnDays(c.env.DB, c.var.spaceId)) ?? DEFAULT_WARN_DAYS }),
+  )
   .patch("/space", zValidator("json", spacePatch), async (c) => {
     const { warn_days } = c.req.valid("json");
     await setWarnDays(c.env.DB, c.var.spaceId, warn_days);
