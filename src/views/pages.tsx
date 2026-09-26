@@ -1,6 +1,6 @@
 import { shortDate } from "../domain/date";
 import { daysLeftLabel, groupByDeadline, itemStatus } from "../domain/status";
-import type { Item } from "../domain/schema";
+import type { Item, Tag } from "../domain/schema";
 
 const kindLabel = { best_by: "賞味期限", use_by: "消費期限" } as const;
 const kindShort = { best_by: "賞味", use_by: "消費" } as const;
@@ -11,10 +11,15 @@ type ListedItem = Item & { days_left: number };
 
 export const ItemList = (props: {
   items: ListedItem[];
+  tags: Tag[];
+  // 絞り込み中のタグ
+  tag: Tag | undefined;
   warnDays: number;
   today: string;
   lostSpace: boolean;
 }) => {
+  // 絞り込み中は全件が同じタグなので出さない
+  const tagNames = new Map(props.tag ? [] : props.tags.map((tag) => [tag.id, tag.name]));
   const row = (item: ListedItem) => (
     <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
       {/* 左にスワイプすると削除ボタンが出る。横スクロールと scroll-snap だけで作り、JS は使わない（ADR 0009） */}
@@ -22,6 +27,9 @@ export const ItemList = (props: {
         <a class="row" href={`/items/${item.id}/edit`}>
           <span class="name">{item.name}</span>
           <span class="meta">
+            {item.tag_id && tagNames.has(item.tag_id) ? (
+              <span class="tag">{tagNames.get(item.tag_id)}</span>
+            ) : null}
             {kindShort[item.kind]} {shortDate(item.expires_on, props.today)}
           </span>
           <span class="days">{daysLeftLabel(item.days_left)}</span>
@@ -50,21 +58,54 @@ export const ItemList = (props: {
   return (
     <>
       <header>
-        <h1>期限メモ</h1>
+        <div class="title">
+          <button
+            class="menu secondary"
+            type="button"
+            popovertarget="tag-menu"
+            aria-label="タグで絞り込む"
+          >
+            ☰
+          </button>
+          <h1>{props.tag?.name ?? "期限メモ"}</h1>
+        </div>
         <nav>
-          <a class="button" href="/items/new">
+          <a class="button" href={props.tag ? `/items/new?tag=${props.tag.id}` : "/items/new"}>
             ＋ 追加
           </a>
           <a href="/settings">設定</a>
         </nav>
       </header>
+      {/* 左上のボタンから開く。popover なので JS は使わない（ADR 0011） */}
+      <nav popover="auto" id="tag-menu" aria-label="タグ">
+        <ul>
+          <li>
+            <a href="/" aria-current={props.tag ? undefined : "page"}>
+              すべて
+            </a>
+          </li>
+          {props.tags.map((tag) => (
+            <li>
+              <a
+                href={`/?tag=${tag.id}`}
+                aria-current={tag.id === props.tag?.id ? "page" : undefined}
+              >
+                {tag.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <a class="button secondary" href="/tags">
+          タグを編集
+        </a>
+      </nav>
       {props.lostSpace ? (
         <p class="notice" role="alert">
           この端末で使っていた一覧が見つかりません。共有URLが作り直された可能性があります。共有している人から新しい共有URLを受け取って開いてください（このまま追加すると別の新しい一覧になります）。
         </p>
       ) : null}
       {props.items.length === 0 ? (
-        <p>まだ登録がありません。</p>
+        <p>{props.tag ? `「${props.tag.name}」の商品はありません。` : "まだ登録がありません。"}</p>
       ) : (
         groupByDeadline(props.items, props.warnDays).map((group) => {
           const shown = group.key === "later" ? group.items.slice(0, LATER_VISIBLE) : group.items;
@@ -90,7 +131,7 @@ export const ItemList = (props: {
   );
 };
 
-type ItemFormValues = Partial<Record<"name" | "expires_on" | "kind" | "memo", string>>;
+type ItemFormValues = Partial<Record<"name" | "expires_on" | "kind" | "memo" | "tag_id", string>>;
 export type ItemField = keyof ItemFormValues;
 
 const errorMessages: Record<ItemField, string> = {
@@ -98,6 +139,7 @@ const errorMessages: Record<ItemField, string> = {
   expires_on: "期限日を正しく入力してください",
   kind: "種別を選んでください",
   memo: "メモは 500 文字以内で入力してください",
+  tag_id: "タグを選び直してください",
 };
 
 const FieldError = (props: { field: ItemField; errors: ReadonlySet<ItemField> }) =>
@@ -112,6 +154,7 @@ export const ItemForm = (props: {
   action: string;
   values: ItemFormValues;
   errors: ReadonlySet<ItemField>;
+  tags: Tag[];
 }) => {
   const { values, errors } = props;
   const invalid = (field: ItemField) =>
@@ -181,6 +224,20 @@ export const ItemForm = (props: {
           ))}
           <FieldError field="kind" errors={errors} />
         </fieldset>
+        {props.tags.length > 0 ? (
+          <p>
+            <label for="tag_id">タグ</label>
+            <select id="tag_id" name="tag_id" {...invalid("tag_id")}>
+              <option value="">なし</option>
+              {props.tags.map((tag) => (
+                <option value={tag.id} selected={values.tag_id === tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+            <FieldError field="tag_id" errors={errors} />
+          </p>
+        ) : null}
         <p>
           <label for="memo">メモ（任意）</label>
           <textarea id="memo" name="memo" maxlength={500} rows={3} {...invalid("memo")}>
@@ -277,6 +334,66 @@ const ShareUrl = (props: { url: string }) => (
         </button>
       </form>
     </div>
+  </>
+);
+
+export const TagSettings = (props: { tags: Tag[]; name: string; invalid: boolean }) => (
+  <>
+    <h1>タグ</h1>
+    <p>食事・菓子・酒のように商品を分けると、一覧の左上のボタンから絞り込めます。</p>
+    {props.tags.length === 0 ? (
+      <p>まだタグがありません。</p>
+    ) : (
+      <ul class="tags">
+        {props.tags.map((tag) => (
+          <li>
+            <span>{tag.name}</span>
+            <button class="danger" type="button" popovertarget={`delete-tag-${tag.id}`}>
+              削除
+            </button>
+            <div popover="auto" id={`delete-tag-${tag.id}`}>
+              <p>「{tag.name}」を削除しますか？付いている商品はタグなしになります。</p>
+              <form class="actions" method="post" action={`/tags/${tag.id}/delete`}>
+                <button class="danger">削除する</button>
+                <button
+                  class="secondary"
+                  type="button"
+                  popovertarget={`delete-tag-${tag.id}`}
+                  popovertargetaction="hide"
+                >
+                  やめる
+                </button>
+              </form>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+    <form method="post" action="/tags">
+      <p>
+        <label for="tag-name">新しいタグ</label>
+        <input
+          id="tag-name"
+          name="name"
+          required
+          maxlength={20}
+          placeholder="例: 食事"
+          value={props.name}
+          {...(props.invalid ? { "aria-invalid": true, "aria-describedby": "tag-name-error" } : {})}
+        />
+        {props.invalid ? (
+          <span class="error" id="tag-name-error">
+            タグ名を 20 文字以内で入力してください
+          </span>
+        ) : null}
+      </p>
+      <p class="actions">
+        <button>追加</button>
+        <a class="button secondary" href="/">
+          戻る
+        </a>
+      </p>
+    </form>
   </>
 );
 

@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { itemInput, itemPatch, spaceId, spacePatch } from "./schema";
+import { itemInput, itemPatch, spaceId, spacePatch, tagInput } from "./schema";
 
 const valid = { name: "牛乳", expires_on: "2026-10-05", kind: "use_by" };
 
 describe("itemInput", () => {
   it("メモを省略すると null になり、前後の空白は落とす", () => {
-    expect(itemInput.parse({ ...valid, name: "  牛乳 " })).toEqual({ ...valid, memo: null });
+    expect(itemInput.parse({ ...valid, name: "  牛乳 " })).toEqual({
+      ...valid,
+      memo: null,
+      tag_id: null,
+    });
   });
 
   it.each([
@@ -53,6 +57,18 @@ describe("itemInput", () => {
   it("memo は 500 文字まで", () => {
     expect(itemInput.safeParse({ ...valid, memo: "あ".repeat(501) }).success).toBe(false);
   });
+
+  it.each([
+    ["", null],
+    [null, null],
+    ["6f1c2b1e-3a4d-4e5f-8a9b-0c1d2e3f4a5b", "6f1c2b1e-3a4d-4e5f-8a9b-0c1d2e3f4a5b"],
+  ])("tag_id: %j は %j", (tag_id, expected) => {
+    expect(itemInput.parse({ ...valid, tag_id }).tag_id).toBe(expected);
+  });
+
+  it("tag_id は UUID か空文字だけ", () => {
+    expect(itemInput.safeParse({ ...valid, tag_id: "食事" }).success).toBe(false);
+  });
 });
 
 describe("itemPatch", () => {
@@ -64,8 +80,23 @@ describe("itemPatch", () => {
     expect(itemPatch.parse({ memo: "" })).toEqual({ memo: null });
   });
 
+  it("tag_id は null で外せる", () => {
+    expect(itemPatch.parse({ tag_id: "" })).toEqual({ tag_id: null });
+  });
+
   it.each([{}, { expires_on: "2026-02-30" }, { memo: "あ".repeat(501) }])("%j は不可", (v) => {
     expect(itemPatch.safeParse(v).success).toBe(false);
+  });
+});
+
+describe("tagInput", () => {
+  it("前後の空白は落とし、20 文字まで", () => {
+    expect(tagInput.parse({ name: " 菓子 " })).toEqual({ name: "菓子" });
+    expect(tagInput.safeParse({ name: "あ".repeat(20) }).success).toBe(true);
+  });
+
+  it.each(["", "  ", "あ".repeat(21)])("name: %j は不可", (name) => {
+    expect(tagInput.safeParse({ name }).success).toBe(false);
   });
 });
 

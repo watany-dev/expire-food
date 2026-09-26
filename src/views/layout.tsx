@@ -13,6 +13,16 @@ a{color:#0b57d0}
 .secondary{background:#fff;color:#0b57d0}
 .danger{background:#b3261e;border-color:#b3261e;color:#fff}
 header nav{display:flex;align-items:center;gap:1rem}
+header .title{display:flex;align-items:center;gap:.5rem;min-width:0}
+header .title h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menu{min-width:44px;padding:.6rem .75rem;line-height:1}
+#tag-menu{inset:0 auto auto 0;margin:.5rem;min-width:14rem}
+#tag-menu ul{list-style:none;margin:0 0 1rem;padding:0}
+#tag-menu li a{display:block;padding:.6rem .75rem;border-radius:.5rem;text-decoration:none}
+#tag-menu [aria-current]{background:#e8f0fe;font-weight:bold}
+.row .tag{margin-right:.4rem;padding:0 .4rem;border-radius:.25rem;background:#e8f0fe;color:#0b57d0}
+.tags{list-style:none;margin:0 0 1.5rem;padding:0}
+.tags li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.25rem 0;border-bottom:1px solid #ddd}
 .group{display:flex;justify-content:space-between;font-size:.85rem;margin:1rem 0 0;padding:.25rem .75rem;background:#f1f3f4;color:#444}
 .items{list-style:none;margin:0;padding:0}
 .item{border-bottom:1px solid #ddd;border-left:.4rem solid transparent}
@@ -32,7 +42,8 @@ details[open] summary{display:none}
 .actions{display:flex;gap:.5rem;margin-top:1rem}
 form p{margin:0 0 1rem}
 label,legend{display:block;font-weight:bold}
-input,textarea{width:100%;min-height:44px;padding:.5rem;border:1px solid #888;border-radius:.5rem;font:inherit}
+input,textarea,select{width:100%;min-height:44px;padding:.5rem;border:1px solid #888;border-radius:.5rem;font:inherit}
+select{background:#fff}
 input[type=radio]{width:auto;min-height:auto;margin-right:.25rem}
 fieldset{border:0;padding:0;margin:0 0 1rem}
 fieldset label{display:inline-block;font-weight:normal;margin-right:1rem;padding:.5rem 0}

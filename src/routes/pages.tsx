@@ -6,13 +6,16 @@ import type { Context } from "hono";
 import type { Child } from "hono/jsx";
 
 import { daysUntil, todayJst } from "../domain/date";
-import { DEFAULT_WARN_DAYS, itemInput, spacePatch } from "../domain/schema";
+import { DEFAULT_WARN_DAYS, itemInput, spacePatch, tagInput } from "../domain/schema";
 import {
   deleteItem,
+  deleteTag,
   getItem,
   getList,
   getWarnDays,
   insertItem,
+  insertTag,
+  listTags,
   rotateSpace,
   setWarnDays,
   updateItem,
@@ -26,6 +29,7 @@ import {
   ItemList,
   NotFound,
   Settings,
+  TagSettings,
 } from "../views/pages";
 
 const render = (c: Context, title: string, children: Child, status: 200 | 400 | 404 = 200) =>
@@ -67,18 +71,33 @@ export const pages = new Hono<{ Bindings: Env }>()
       return render(
         c,
         "期限メモ",
-        <ItemList items={[]} warnDays={DEFAULT_WARN_DAYS} today={today} lostSpace={present} />,
+        <ItemList
+          items={[]}
+          tags={[]}
+          tag={undefined}
+          warnDays={DEFAULT_WARN_DAYS}
+          today={today}
+          lostSpace={present}
+        />,
       );
     }
     saveSpaceCookie(c, id);
-    const listed = list.items.map((item) => ({
-      ...item,
-      days_left: daysUntil(item.expires_on, today),
-    }));
+    // 消されたタグで開かれたら絞り込まずに全件を出す
+    const tag = list.tags.find((t) => t.id === c.req.query("tag"));
+    const listed = list.items
+      .filter((item) => tag === undefined || item.tag_id === tag.id)
+      .map((item) => ({ ...item, days_left: daysUntil(item.expires_on, today) }));
     return render(
       c,
-      "期限メモ",
-      <ItemList items={listed} warnDays={list.warnDays} today={today} lostSpace={false} />,
+      tag?.name ?? "期限メモ",
+      <ItemList
+        items={listed}
+        tags={list.tags}
+        tag={tag}
+        warnDays={list.warnDays}
+        today={today}
+        lostSpace={false}
+      />,
     );
   })
   // 共有 URL。スペースを Cookie に保存して一覧へ戻す（機種変更・家族共有）。
@@ -90,18 +109,27 @@ export const pages = new Hono<{ Bindings: Env }>()
   )
   .get("/app.js", etag(), (c) => script(c, appScript))
   .get("/extract.js", etag(), (c) => script(c, extractScript))
-  .get("/items/new", (c) =>
-    render(c, "追加", <ItemForm title="追加" action="/items" values={{}} errors={new Set()} />),
-  )
+  // 絞り込み中の一覧から開いたら、そのタグを選んでおく
+  .get("/items/new", async (c) => {
+    const { id } = spaceCookie(c);
+    const tags = id === undefined ? [] : await listTags(c.env.DB, id);
+    const values = { tag_id: c.req.query("tag") ?? "" };
+    return render(
+      c,
+      "追加",
+      <ItemForm title="追加" action="/items" values={values} errors={new Set()} tags={tags} />,
+    );
+  })
   .post("/items", resolveSpace, async (c) => {
     const values = await formValues(c);
     const parsed = itemInput.safeParse(values);
     if (!parsed.success) {
       const errors = invalidFields(parsed.error.issues);
+      const tags = await listTags(c.env.DB, c.var.spaceId);
       return render(
         c,
         "追加",
-        <ItemForm title="追加" action="/items" values={values} errors={errors} />,
+        <ItemForm title="追加" action="/items" values={values} errors={errors} tags={tags} />,
         400,
       );
     }
@@ -110,13 +138,25 @@ export const pages = new Hono<{ Bindings: Env }>()
   })
   .get("/items/:id/edit", findSpace, async (c) => {
     const spaceId = c.var.spaceId;
-    const item = spaceId === undefined ? null : await getItem(c.env.DB, spaceId, c.req.param("id"));
+    const [item, tags] =
+      spaceId === undefined
+        ? [null, []]
+        : await Promise.all([
+            getItem(c.env.DB, spaceId, c.req.param("id")),
+            listTags(c.env.DB, spaceId),
+          ]);
     if (item === null) return render(c, "見つかりません", <NotFound />, 404);
-    const values = { ...item, memo: item.memo ?? "" };
+    const values = { ...item, memo: item.memo ?? "", tag_id: item.tag_id ?? "" };
     return render(
       c,
       "編集",
-      <ItemForm title="編集" action={`/items/${item.id}`} values={values} errors={new Set()} />,
+      <ItemForm
+        title="編集"
+        action={`/items/${item.id}`}
+        values={values}
+        errors={new Set()}
+        tags={tags}
+      />,
     );
   })
   .post("/items/:id", resolveSpace, async (c) => {
@@ -125,10 +165,11 @@ export const pages = new Hono<{ Bindings: Env }>()
     const action = `/items/${c.req.param("id")}`;
     if (!parsed.success) {
       const errors = invalidFields(parsed.error.issues);
+      const tags = await listTags(c.env.DB, c.var.spaceId);
       return render(
         c,
         "編集",
-        <ItemForm title="編集" action={action} values={values} errors={errors} />,
+        <ItemForm title="編集" action={action} values={values} errors={errors} tags={tags} />,
         400,
       );
     }
@@ -139,6 +180,26 @@ export const pages = new Hono<{ Bindings: Env }>()
   .post("/items/:id/delete", resolveSpace, async (c) => {
     await deleteItem(c.env.DB, c.var.spaceId, c.req.param("id"));
     return c.redirect("/", 303);
+  })
+  .get("/tags", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    const tags = spaceId === undefined ? [] : await listTags(c.env.DB, spaceId);
+    return render(c, "タグ", <TagSettings tags={tags} name="" invalid={false} />);
+  })
+  .post("/tags", resolveSpace, async (c) => {
+    const { name = "" } = await formValues(c);
+    const parsed = tagInput.safeParse({ name });
+    if (!parsed.success) {
+      const tags = await listTags(c.env.DB, c.var.spaceId);
+      return render(c, "タグ", <TagSettings tags={tags} name={name} invalid />, 400);
+    }
+    await insertTag(c.env.DB, c.var.spaceId, parsed.data.name);
+    return c.redirect("/tags", 303);
+  })
+  // 付いていた商品はタグなしに戻る。別の端末で先に削除されていても結果は同じ
+  .post("/tags/:id/delete", resolveSpace, async (c) => {
+    await deleteTag(c.env.DB, c.var.spaceId, c.req.param("id"));
+    return c.redirect("/tags", 303);
   })
   // warn_days の読み込みでスペースの確認を兼ねる（findSpace を通さない）
   .get("/settings", async (c) => {

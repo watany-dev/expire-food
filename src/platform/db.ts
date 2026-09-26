@@ -1,6 +1,6 @@
-import type { Item, ItemInput, ItemPatch } from "../domain/schema";
+import type { Item, ItemInput, ItemPatch, Tag } from "../domain/schema";
 
-// items のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
+// items / tags のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
 
 export const spaceExists = async (db: D1Database, spaceId: string): Promise<boolean> =>
   (await db.prepare("SELECT 1 FROM spaces WHERE id = ?").bind(spaceId).first()) !== null;
@@ -25,6 +25,7 @@ export const rotateSpace = async (
       )
       .bind(newId, oldId),
     db.prepare("UPDATE items SET space_id = ? WHERE space_id = ?").bind(newId, oldId),
+    db.prepare("UPDATE tags SET space_id = ? WHERE space_id = ?").bind(newId, oldId),
     db.prepare("DELETE FROM spaces WHERE id = ?").bind(oldId),
   ]);
   return (inserted?.meta.changes ?? 0) > 0;
@@ -45,25 +46,54 @@ export const setWarnDays = async (
 const listItemsQuery = (db: D1Database, spaceId: string) =>
   db
     .prepare(
-      "SELECT id, name, expires_on, kind, memo, created_at FROM items WHERE space_id = ? ORDER BY expires_on, created_at, id",
+      "SELECT id, name, expires_on, kind, memo, tag_id, created_at FROM items WHERE space_id = ? ORDER BY expires_on, created_at, id",
     )
     .bind(spaceId);
 
 export const listItems = async (db: D1Database, spaceId: string): Promise<Item[]> =>
   (await listItemsQuery(db, spaceId).all<Item>()).results;
 
+const listTagsQuery = (db: D1Database, spaceId: string) =>
+  db.prepare("SELECT id, name FROM tags WHERE space_id = ? ORDER BY created_at, id").bind(spaceId);
+
+export const listTags = async (db: D1Database, spaceId: string): Promise<Tag[]> =>
+  (await listTagsQuery(db, spaceId).all<Tag>()).results;
+
 // 一覧画面の分を 1 回の往復で読む。スペースが無ければ null（存在の確認を兼ねる）
 export const getList = async (
   db: D1Database,
   spaceId: string,
-): Promise<{ warnDays: number; items: Item[] } | null> => {
-  const [space, items] = await db.batch([
+): Promise<{ warnDays: number; items: Item[]; tags: Tag[] } | null> => {
+  const [space, items, tags] = await db.batch([
     db.prepare("SELECT warn_days FROM spaces WHERE id = ?").bind(spaceId),
     listItemsQuery(db, spaceId),
+    listTagsQuery(db, spaceId),
   ]);
   const row = space?.results[0] as { warn_days: number } | undefined;
-  return row ? { warnDays: row.warn_days, items: (items?.results ?? []) as Item[] } : null;
+  return row
+    ? {
+        warnDays: row.warn_days,
+        items: (items?.results ?? []) as Item[],
+        tags: (tags?.results ?? []) as Tag[],
+      }
+    : null;
 };
+
+// 同じ名前のタグがあればそれを返す（二重送信で増やさない）
+export const insertTag = async (db: D1Database, spaceId: string, name: string): Promise<Tag> =>
+  (await db
+    .prepare(
+      `INSERT INTO tags (id, space_id, name, created_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT (space_id, name) DO UPDATE SET name = excluded.name
+      RETURNING id, name`,
+    )
+    .bind(crypto.randomUUID(), spaceId, name, new Date().toISOString())
+    .first<Tag>()) as Tag;
+
+// 付いていた商品は ON DELETE SET NULL でタグなしに戻る
+export const deleteTag = async (db: D1Database, spaceId: string, id: string): Promise<boolean> =>
+  (await db.prepare("DELETE FROM tags WHERE id = ? AND space_id = ?").bind(id, spaceId).run()).meta
+    .changes > 0;
 
 // 読み取り結果の商品名を照らし合わせる商品マスタの代わり（ADR 0007）
 export const listItemNames = async (db: D1Database, spaceId: string): Promise<string[]> =>
@@ -80,16 +110,28 @@ export const insertItem = async (
   input: ItemInput,
 ): Promise<Item> => {
   const item: Item = { id: crypto.randomUUID(), ...input, created_at: new Date().toISOString() };
-  await db
+  // 他スペースのタグ ID は NULL にする
+  const tagId = await db
     .prepare(
-      "INSERT INTO items (id, space_id, name, expires_on, kind, memo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO items (id, space_id, name, expires_on, kind, memo, tag_id, created_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT id FROM tags WHERE id = ?7 AND space_id = ?2), ?8)
+      RETURNING tag_id`,
     )
-    .bind(item.id, spaceId, item.name, item.expires_on, item.kind, item.memo, item.created_at)
-    .run();
-  return item;
+    .bind(
+      item.id,
+      spaceId,
+      item.name,
+      item.expires_on,
+      item.kind,
+      item.memo,
+      item.tag_id,
+      item.created_at,
+    )
+    .first<string | null>("tag_id");
+  return { ...item, tag_id: tagId };
 };
 
-// 送られた項目だけを 1 文で書き換える（共有中の別端末の同時編集を上書きしない）。memo は null で消せるので送られたかを別に渡す
+// 送られた項目だけを 1 文で書き換える（共有中の別端末の同時編集を上書きしない）。memo / tag_id は null で消せるので送られたかを別に渡す
 export const updateItem = (
   db: D1Database,
   spaceId: string,
@@ -102,9 +144,10 @@ export const updateItem = (
         name = COALESCE(?1, name),
         expires_on = COALESCE(?2, expires_on),
         kind = COALESCE(?3, kind),
-        memo = CASE WHEN ?4 THEN ?5 ELSE memo END
+        memo = CASE WHEN ?4 THEN ?5 ELSE memo END,
+        tag_id = CASE WHEN ?8 THEN (SELECT id FROM tags WHERE id = ?9 AND space_id = ?7) ELSE tag_id END
       WHERE id = ?6 AND space_id = ?7
-      RETURNING id, name, expires_on, kind, memo, created_at`,
+      RETURNING id, name, expires_on, kind, memo, tag_id, created_at`,
     )
     .bind(
       patch.name ?? null,
@@ -114,6 +157,8 @@ export const updateItem = (
       patch.memo ?? null,
       id,
       spaceId,
+      "tag_id" in patch ? 1 : 0,
+      patch.tag_id ?? null,
     )
     .first<Item>();
 
@@ -124,7 +169,7 @@ export const deleteItem = async (db: D1Database, spaceId: string, id: string): P
 export const getItem = (db: D1Database, spaceId: string, id: string): Promise<Item | null> =>
   db
     .prepare(
-      "SELECT id, name, expires_on, kind, memo, created_at FROM items WHERE id = ? AND space_id = ?",
+      "SELECT id, name, expires_on, kind, memo, tag_id, created_at FROM items WHERE id = ? AND space_id = ?",
     )
     .bind(id, spaceId)
     .first<Item>();

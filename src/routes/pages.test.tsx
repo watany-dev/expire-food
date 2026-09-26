@@ -329,6 +329,130 @@ describe("削除", () => {
   });
 });
 
+/** タグを作り、その ID を返す */
+const addTag = async (spaceId: string, name: string): Promise<string> => {
+  expect((await post("/tags", { name }, spaceId)).status).toBe(303);
+  const html = await (await get("/tags", spaceId)).text();
+  const id = new RegExp(`<span>${name}</span><button[^>]*popovertarget="delete-tag-([^"]+)"`).exec(
+    html,
+  )?.[1];
+  if (!id) throw new Error(`タグ ${name} がありません`);
+  return id;
+};
+
+describe("タグ", () => {
+  it("Cookie が無ければ空のタグ画面を出し、スペースは発行しない", async () => {
+    const res = await app.request("/tags");
+    expect(res.headers.get("set-cookie")).toBeNull();
+    const html = await res.text();
+    expect(html).toContain("まだタグがありません");
+    expect(html).toContain('action="/tags"');
+  });
+
+  it("一覧の左上のメニューから絞り込み、タグ画面へ行ける", async () => {
+    const spaceId = await newSpaceWith();
+    const food = await addTag(spaceId, "食事");
+    const html = await (await get("/", spaceId)).text();
+    expect(html).toContain('popovertarget="tag-menu" aria-label="タグで絞り込む"');
+    expect(html).toContain('<a href="/" aria-current="page">すべて</a>');
+    expect(html).toContain(`<a href="/?tag=${food}">食事</a>`);
+    expect(html).toContain('href="/tags"');
+  });
+
+  it("タグを付けて登録すると一覧に出し、タグで絞り込める", async () => {
+    const spaceId = await newSpaceWith({ ...milk, name: "牛乳" });
+    const food = await addTag(spaceId, "食事");
+    const drink = await addTag(spaceId, "酒");
+    await post("/items", { ...milk, name: "ビール", tag_id: drink }, spaceId);
+    await post("/items", { ...milk, name: "パン", tag_id: food }, spaceId);
+
+    const all = await (await get("/", spaceId)).text();
+    expect(all).toContain('<span class="tag">酒</span>');
+    expect(all).toContain('<span class="tag">食事</span>');
+
+    const res = await get(`/?tag=${drink}`, spaceId);
+    const html = await res.text();
+    expect(html).toContain("<title>酒 - 期限メモ</title>");
+    expect(html).toContain("<h1>酒</h1>");
+    expect([...html.matchAll(/class="name">([^<]+)</g)].map((m) => m[1])).toEqual(["ビール"]);
+    expect(html).not.toContain('<span class="tag">');
+    expect(html).toContain(`<a href="/?tag=${drink}" aria-current="page">酒</a>`);
+    // 絞り込み中に追加すると、そのタグを選んだフォームを開く
+    expect(html).toContain(`href="/items/new?tag=${drink}"`);
+    const form = await (await get(`/items/new?tag=${drink}`, spaceId)).text();
+    expect(form).toContain(`<option value="${drink}" selected="">酒</option>`);
+    expect(form).toContain('<option value="">なし</option>');
+  });
+
+  it("商品の無いタグ・消えたタグで開いたとき", async () => {
+    const spaceId = await newSpaceWith();
+    const empty = await addTag(spaceId, "菓子");
+    expect(await (await get(`/?tag=${empty}`, spaceId)).text()).toContain(
+      "「菓子」の商品はありません。",
+    );
+    const html = await (await get(`/?tag=${crypto.randomUUID()}`, spaceId)).text();
+    expect(html).toContain("<h1>期限メモ</h1>");
+    expect(html).toContain('class="name">牛乳<');
+  });
+
+  it("タグが無ければフォームにタグの欄を出さない", async () => {
+    const html = await (await get("/items/new", await newSpaceWith())).text();
+    expect(html).not.toContain('name="tag_id"');
+  });
+
+  it("編集でタグを付け替え・外せる", async () => {
+    const spaceId = await newSpaceWith();
+    const food = await addTag(spaceId, "食事");
+    const [id] = await itemIds(spaceId);
+    await post(`/items/${id}`, { ...milk, tag_id: food }, spaceId);
+    expect(await (await get(`/items/${id}/edit`, spaceId)).text()).toContain(
+      `<option value="${food}" selected="">食事</option>`,
+    );
+    await post(`/items/${id}`, { ...milk, tag_id: "" }, spaceId);
+    const html = await (await get(`/items/${id}/edit`, spaceId)).text();
+    expect(html).toContain(`<option value="${food}">食事</option>`);
+  });
+
+  it("不正なタグは 400 でフォームを出し直す", async () => {
+    const spaceId = await newSpaceWith();
+    await addTag(spaceId, "食事");
+    const [id] = await itemIds(spaceId);
+    for (const path of ["/items", `/items/${id}`]) {
+      const res = await post(path, { ...milk, tag_id: "食事" }, spaceId);
+      expect(res.status).toBe(400);
+      const html = await res.text();
+      expect(html).toContain('id="tag_id-error"');
+      expect(html).toContain('<option value="">なし</option>');
+    }
+  });
+
+  it("空・長すぎる名前は 400 で入力値を残す", async () => {
+    const spaceId = await newSpaceWith();
+    const res = await post("/tags", { name: "あ".repeat(21) }, spaceId);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('id="tag-name-error"');
+    expect(html).toContain(`value="${"あ".repeat(21)}"`);
+    expect((await post("/tags", {}, spaceId)).status).toBe(400);
+  });
+
+  it("削除すると付いていた商品はタグなしに戻る。別スペースからは消せない", async () => {
+    const spaceId = await newSpaceWith();
+    const food = await addTag(spaceId, "食事");
+    const [id] = await itemIds(spaceId);
+    await post(`/items/${id}`, { ...milk, tag_id: food }, spaceId);
+
+    await post(`/tags/${food}/delete`, {}, await newSpaceWith());
+    expect(await (await get("/tags", spaceId)).text()).toContain("<span>食事</span>");
+
+    const res = await post(`/tags/${food}/delete`, {}, spaceId);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/tags");
+    expect(await (await get("/tags", spaceId)).text()).toContain("まだタグがありません");
+    expect(await (await get("/", spaceId)).text()).not.toContain('class="tag"');
+  });
+});
+
 describe("設定", () => {
   it("Cookie が無ければ既定の 3 日を表示し、スペースは発行しない", async () => {
     const res = await get("/settings");
