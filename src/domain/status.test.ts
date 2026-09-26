@@ -4,17 +4,20 @@ import { daysLeftLabel, groupByDeadline, itemStatus } from "./status";
 
 describe("itemStatus", () => {
   it.each([
-    [-1, 3, "expired"],
-    [-30, 1, "expired"],
-    [0, 3, "warn"],
-    [2, 3, "warn"],
-    [3, 3, "normal"],
-    [0, 1, "warn"],
-    [1, 1, "normal"],
-    [29, 30, "warn"],
-    [30, 30, "normal"],
-  ])("残り %i 日・warn_days %i は %s", (daysLeft, warnDays, expected) => {
-    expect(itemStatus(daysLeft, warnDays)).toBe(expected);
+    [-1, 3, "use_by", "expired"],
+    [-30, 1, "use_by", "expired"],
+    [-1, 3, "best_by", "past_best"],
+    [-30, 1, "best_by", "past_best"],
+    [0, 3, "use_by", "warn"],
+    [0, 3, "best_by", "warn"],
+    [2, 3, "best_by", "warn"],
+    [3, 3, "best_by", "normal"],
+    [0, 1, "best_by", "warn"],
+    [1, 1, "use_by", "normal"],
+    [29, 30, "best_by", "warn"],
+    [30, 30, "best_by", "normal"],
+  ] as const)("残り %i 日・warn_days %i・%s は %s", (daysLeft, warnDays, kind, expected) => {
+    expect(itemStatus(daysLeft, warnDays, kind)).toBe(expected);
   });
 });
 

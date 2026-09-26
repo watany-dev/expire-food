@@ -74,13 +74,18 @@ describe("一覧", () => {
     expect(html).not.toMatch(/&(gt|lt|quot|#39|amp);/);
   });
 
-  it("期限日の昇順に、期限切れ・期限間近・通常を色分けして表示する", async () => {
+  it("期限日の昇順に、消費期限切れ・賞味期限切れ・期限間近・通常を色分けして表示する", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // JST 2026-10-05 00:00
     vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
     const spaceId = await newSpaceWith({ ...milk, name: "パン", expires_on: "2026-10-08" });
     await post("/items", { ...milk, name: "卵", expires_on: "2026-10-07" }, spaceId);
     await post("/items", { ...milk, name: "豆腐", expires_on: "2026-10-04" }, spaceId);
+    await post(
+      "/items",
+      { ...milk, name: "クッキー", expires_on: "2026-10-03", kind: "best_by" },
+      spaceId,
+    );
 
     const res = await get("/", spaceId);
     expect(spaceCookie(res)).toBe(spaceId);
@@ -91,17 +96,20 @@ describe("一覧", () => {
       ),
     ];
     expect(rows.map((m) => m.slice(1))).toEqual([
+      ["past_best", "クッキー", "2日過ぎ"],
       ["expired", "豆腐", "1日過ぎ"],
       ["warn", "卵", "あと2日"],
       ["normal", "パン", "あと3日"],
     ]);
-    expect(html).toContain("消費 10/4");
+    expect(html).toContain("賞味期限切れ 10/3");
+    expect(html).toContain("消費期限切れ 10/4");
+    expect(html).toContain("消費 10/7");
     expect(
       [...html.matchAll(/<h2 class="group"><span>([^<]+)<\/span><span>([^<]+)</g)].map((m) =>
         m.slice(1),
       ),
     ).toEqual([
-      ["期限切れ", "1件"],
+      ["期限切れ", "2件"],
       ["14日以内", "2件"],
     ]);
   });

@@ -107,6 +107,7 @@
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）
 - [x] リクエスト本文の上限（`bodyLimit`）: フォームと JSON API は 16KB、`/api/extract` は画像の上限 + 16KB。超えたら `413`（#23）
 - [x] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト（`src/domain/status.ts`）
+- [x] 消費期限切れ（赤）と賞味期限切れ（灰色、`past_best`）を分けて表示する（#41）。区切りはどちらも「期限切れ」
 - [x] 閲覧系の画面ではスペースを発行せず、書き込み時に発行する（ADR 0001 の `/` の扱いを更新）
 - [x] 一覧を 1 行に詰め、期限切れ / N日以内 / それ以降に区切って遠いものを畳む。削除ボタンは左スワイプで出す（[ADR 0009](./adr/0009-compact-list.md)）
 
