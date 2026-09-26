@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { etag } from "hono/etag";
 import appScript from "../client/app.js?raw";
 import extractScript from "../client/extract.js?raw";
 import type { Context } from "hono";
@@ -43,7 +44,8 @@ const formValues = async (c: Context): Promise<Record<string, string>> =>
     ),
   );
 
-// バージョンを URL に含めないので、デプロイ後に古いスクリプトが残らないよう毎回確認させる
+// バージョンを URL に含めないので、デプロイ後に古いスクリプトが残らないよう毎回確認させる。
+// 変わっていなければ ETag で 304 を返し、本文は送り直さない
 const script = (c: Context, source: string) =>
   c.body(source, 200, {
     "content-type": "text/javascript; charset=utf-8",
@@ -90,8 +92,8 @@ export const pages = new Hono<{ Bindings: Env }>()
       ? c.redirect("/")
       : render(c, "共有URLが使えません", <InvalidShareUrl />, 404),
   )
-  .get("/app.js", (c) => script(c, appScript))
-  .get("/extract.js", (c) => script(c, extractScript))
+  .get("/app.js", etag(), (c) => script(c, appScript))
+  .get("/extract.js", etag(), (c) => script(c, extractScript))
   .get("/items/new", (c) =>
     render(c, "追加", <ItemForm title="追加" action="/items" values={{}} errors={new Set()} />),
   )

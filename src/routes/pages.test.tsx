@@ -170,6 +170,18 @@ describe("追加", () => {
     expect(await res.text()).toContain(body);
   });
 
+  it.each(["/app.js", "/extract.js"])(
+    "%s が変わっていなければ 304 で本文を送らない",
+    async (path) => {
+      const etag = (await app.request(path)).headers.get("etag");
+      expect(etag).toMatch(/^"[0-9a-f]+"$/);
+      const res = await app.request(path, { headers: { "if-none-match": etag ?? "" } });
+      expect(res.status).toBe(304);
+      expect(res.headers.get("cache-control")).toBe("no-cache");
+      expect(await res.text()).toBe("");
+    },
+  );
+
   it("Origin の無いフォーム送信は 403", async () => {
     const res = await app.request(
       "/items",
