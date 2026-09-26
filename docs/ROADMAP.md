@@ -177,6 +177,7 @@
 | AI の読み取り精度                      | 期限の誤登録                         | 必ず確認フォームを経由。原文をコードで検証し、決めきれない候補は判定モデルかユーザーが選ぶ     |
 | URL が鍵                               | URL 流出で第三者が閲覧可能           | 共有 URL の再生成機能（Phase 4）、`Referrer-Policy: no-referrer`                               |
 | Workers AI の無料枠                    | 上限超過で抽出不可                   | レート制限、クライアントでの縮小、失敗時は手入力へ                                             |
+| devDependencies の脆弱性               | Scorecard の Vulnerabilities         | `overrides` で修正版へ。修正版の無い `extract-zip` は `@puppeteer/browsers` 3 系で外す         |
 
 ## 対象外（要件 9 の再掲）
 
