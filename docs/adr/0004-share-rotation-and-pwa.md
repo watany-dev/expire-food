@@ -20,7 +20,7 @@ Phase 4 で、設定画面に共有 URL を出してコピーできるように�
 - PWA
   - `manifest.webmanifest`・アイコン（192 / 512 / maskable、iOS 用の `apple-touch-icon` 180）・`sw.js`・`offline.html` は `public/` に置き、Cloudflare の静的アセットとして Worker より先に配信する。Worker のルートを増やさず、`@cloudflare/vite-plugin` が `vp build` で `assets` を設定する
   - Service Worker はオフライン時に画面遷移の代わりに `offline.html` を返すだけ。一覧などのデータや画面はキャッシュしない（共有している端末の更新が見えなくなるため）
-  - Service Worker の登録とコピーは全画面で読み込む `/app.js`（`src/client/app.js`、`/extract.js` と同じく `?raw` で取り込み `no-cache` で配信）。CSP に `manifest-src 'self'` と `worker-src 'self'` を足す
+  - Service Worker の登録とコピーは全画面で読み込む `/app.js`（`src/client/app.js`、`/extract.js` と同じく `?raw` で取り込み `no-cache` で配信。ADR 0010 で ETag を付けた）。CSP に `manifest-src 'self'` と `worker-src 'self'` を足す
 
 ## 影響
 

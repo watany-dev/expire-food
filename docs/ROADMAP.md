@@ -14,7 +14,7 @@
 | DB                   | Cloudflare D1                 | `migrations/` を `wrangler d1 migrations` で管理                                             |
 | 画像解析             | Workers AI（Gemma 4 + Jev）   | 段階処理（ADR 0007）。ローカル開発でも `remote: true` でリモート実行                         |
 | レート制限           | Workers Rate Limiting binding | `EXTRACT_RATE_LIMITER`（10 回 / 60 秒）。キーは space_id                                     |
-| 入力検証             | Zod + `@hono/zod-validator`   | スキーマは `src/domain/schema.ts`。API は `zValidator` で検証                                |
+| 入力検証             | Zod + `@hono/zod-validator`   | `zod/mini`（ADR 0010）。スキーマは `src/domain/schema.ts`。API は `zValidator` で検証        |
 
 ### Vitest の実行環境について
 
@@ -154,6 +154,7 @@
 - [x] 無料枠の消費を確認する手段 — `bun run usage`（`scripts/usage.ts`）が GraphQL Analytics API から Workers のリクエスト数・Workers AI の Neurons・D1 の読み書き行数を直近 7 日分出し、8 割超えで終了コード 1。集計と判定は `src/domain/usage.ts`
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）— 本番デプロイ後に `bun run usage` で手作業
 - [x] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
+- [x] 性能: 一覧・設定画面の D1 の往復を 1 回にし、`/app.js`・`/extract.js` に ETag、`zod/mini` と minify で Worker のバンドルを 319KB → 102KB（[ADR 0010](./adr/0010-performance.md)）
 
 ---
 
