@@ -139,6 +139,7 @@
 構成は [ADR 0004](./adr/0004-share-rotation-and-pwa.md)。
 
 - [x] 設定画面に共有 URL（`/s/{space_id}`）を表示・コピー（Clipboard API。使えなければボタンを出さず長押しでコピー）
+- [x] Web Share API が使える端末では「送る」ボタンで共有シートを開く（#43。使えなければボタンを出さない）
 - [x] `POST /api/space/rotate`（画面は `POST /settings/rotate`）: 新 ID を発行して items を付け替え、旧 ID を削除する処理を D1 の `batch()` で一括実行。実行した端末の Cookie を新 ID に更新
 - [x] 旧 URL / 旧 Cookie の扱い: 旧 URL（D1 に無い `/s/:spaceId`）は 404 で案内し Cookie を変えない。旧 Cookie の端末は一覧に「新しい共有URLを開いてください」と出す（書き込めば新しいスペースになる）
 - [x] PWA: `public/` の `manifest.webmanifest`、アイコン（192 / 512 / maskable / `apple-touch-icon`）、`display: standalone`、最小限の Service Worker（`sw.js`。オフライン時に `offline.html` を出すだけで、データはキャッシュしない）
