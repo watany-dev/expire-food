@@ -4,6 +4,7 @@
 
 - 要件: [docs/requirements.md](docs/requirements.md)
 - ロードマップ: [docs/ROADMAP.md](docs/ROADMAP.md)
+- アーキテクチャと AI の役割: [docs/architecture.md](docs/architecture.md)
 
 ## 技術スタック
 
