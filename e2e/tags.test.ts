@@ -18,7 +18,7 @@ test("左上のメニューからタグを作り、タグを付けて登録し�
     await page.getByLabel("商品名").fill(name);
     await page.getByLabel("期限日").fill("2099-01-01");
     await page.getByLabel("タグ").selectOption({ label: tag });
-    await page.getByRole("button", { name: "保存" }).click();
+    await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page).toHaveURL(/\/#item-/);
   }
   await expect(page.locator("li.item .name")).toHaveText(["パン", "ビール"]);

@@ -160,6 +160,7 @@ export const ItemForm = (props: {
   values: ItemFormValues;
   errors: ReadonlySet<ItemField>;
   tags: Tag[];
+  addNext?: boolean;
 }) => {
   const { values, errors } = props;
   const invalid = (field: ItemField) =>
@@ -252,6 +253,11 @@ export const ItemForm = (props: {
         </p>
         <p class="actions">
           <button>保存</button>
+          {props.addNext ? (
+            <button class="secondary" name="next" value="1">
+              保存して次を追加
+            </button>
+          ) : null}
           <a class="button secondary" href="/">
             戻る
           </a>
@@ -316,10 +322,13 @@ const ShareUrl = (props: { url: string }) => (
       <label for="share-url">共有URL</label>
       <input id="share-url" readonly value={props.url} />
     </p>
-    {/* Clipboard API が使えるときだけ /app.js が表示する。使えなければ URL を長押しでコピーする */}
+    {/* Clipboard API / Web Share API が使えるときだけ /app.js が表示する。使えなければ URL を長押しでコピーする */}
     <p class="actions">
       <button id="share-copy" type="button" hidden>
         コピー
+      </button>
+      <button id="share-send" type="button" hidden>
+        送る
       </button>
       <span id="share-status" role="status" />
     </p>

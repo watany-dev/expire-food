@@ -172,6 +172,51 @@ describe("追加", () => {
     expect(await (await get("/", spaceId)).text()).toContain(`<li id="item-${id}" class="item `);
   });
 
+  it("「保存して次を追加」は追加フォームにだけ出し、Enter で送る既定のボタンは「保存」のまま", async () => {
+    const html = await (await app.request("/items/new")).text();
+    expect(html).toMatch(
+      /<button>保存<\/button><button class="secondary" name="next" value="1">保存して次を追加<\/button>/,
+    );
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    expect(await (await get(`/items/${id}/edit`, spaceId)).text()).not.toContain('name="next"');
+  });
+
+  it("「保存して次を追加」で保存すると、タグと種別を引き継いで追加フォームを開く", async () => {
+    const spaceId = await newSpaceWith();
+    const food = await addTag(spaceId, "食事");
+    const res = await post("/items", { ...milk, tag_id: food, next: "1" }, spaceId);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/items/new?kind=use_by&tag=${food}`);
+    expect(await itemIds(spaceId)).toHaveLength(2);
+    const html = await (await get(res.headers.get("location") ?? "", spaceId)).text();
+    expect(html).toMatch(/value="use_by" required="" checked=""/);
+    expect(html).toContain(`<option value="${food}" selected="">食事</option>`);
+  });
+
+  it("「保存して次を追加」でタグが無ければ種別だけを引き継ぐ。通常の保存は一覧の追加した行へ戻る", async () => {
+    const spaceId = await newSpaceWith();
+    const next = await post("/items", { ...milk, kind: "best_by", next: "1" }, spaceId);
+    expect(next.headers.get("location")).toBe("/items/new?kind=best_by&tag=");
+    expect((await post("/items", milk, spaceId)).headers.get("location")).toMatch(/^\/#item-/);
+  });
+
+  it("入力エラーで出し直した追加フォームにも「保存して次を追加」を出す", async () => {
+    const html = await (await post("/items", { ...milk, name: "", next: "1" })).text();
+    expect(html).toContain('name="next" value="1"');
+  });
+
+  it("引き継ぐ種別が不正なら賞味期限を選んでおく", async () => {
+    const html = await (await app.request("/items/new?kind=foo")).text();
+    expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
+  it("種別の無い入力エラーで出し直したフォームも賞味期限を選んでおく", async () => {
+    const { kind: _, ...noKind } = milk;
+    const html = await (await post("/items", noKind)).text();
+    expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
   it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
     const spaceId = await newSpaceWith({ ...milk, name: "𩸽".repeat(100), memo: "𩸽".repeat(500) });
     expect(await itemIds(spaceId)).toHaveLength(1);
@@ -205,6 +250,17 @@ describe("追加", () => {
     expect(res.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("no-cache");
     expect(await res.text()).toContain(body);
+  });
+
+  it("/app.js と /extract.js はトップレベルの名前が重ならない（同じページで読むと SyntaxError になる）", async () => {
+    const names = async (path: string) =>
+      new Set(
+        [...(await (await app.request(path)).text()).matchAll(/^(?:const|let|var) (\w+)/gm)].map(
+          (m) => m[1],
+        ),
+      );
+    const extract = await names("/extract.js");
+    expect([...(await names("/app.js"))].filter((name) => extract.has(name))).toEqual([]);
   });
 
   it.each(["/app.js", "/extract.js"])(
@@ -623,11 +679,12 @@ describe("共有 URL", () => {
     expect(html).not.toContain('id="share-url"');
   });
 
-  it("自分のスペースの共有 URL を出し、コピーボタンは JS が表示するまで隠す", async () => {
+  it("自分のスペースの共有 URL を出し、コピー・送るボタンは JS が表示するまで隠す", async () => {
     const spaceId = await newSpaceWith();
     const html = await (await get("/settings", spaceId)).text();
     expect(html).toContain(`<input id="share-url" readonly="" value="${ORIGIN}/s/${spaceId}"/>`);
     expect(html).toContain('<button id="share-copy" type="button" hidden="">');
+    expect(html).toContain('<button id="share-send" type="button" hidden="">');
     expect(html).toContain('<button class="secondary" type="button" popovertarget="rotate">');
     expect(html).toContain('<form class="actions" method="post" action="/settings/rotate">');
   });
