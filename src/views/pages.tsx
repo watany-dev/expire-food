@@ -1,3 +1,5 @@
+import { encode } from "uqr";
+
 import { shortDate } from "../domain/date";
 import { daysLeftLabel, groupByDeadline, itemStatus } from "../domain/status";
 import type { Item, Tag } from "../domain/schema";
@@ -412,6 +414,11 @@ const ShareUrl = (props: { url: string }) => (
       </button>
       <span id="share-status" role="status" />
     </p>
+    {/* 覗き見されないよう既定は畳む。サーバーで SVG にするので JS が無くても見える */}
+    <details class="qr">
+      <summary>QRコードを表示</summary>
+      <QrCode text={props.url} />
+    </details>
     <p>
       <button class="secondary" type="button" popovertarget="rotate">
         共有URLを作り直す
@@ -430,6 +437,27 @@ const ShareUrl = (props: { url: string }) => (
     </div>
   </>
 );
+
+// 暗いモジュールを 1 つの path にまとめる（raw() で SVG 文字列を埋め込まない）
+const QrCode = (props: { text: string }) => {
+  const { data, size } = encode(props.text, { ecc: "M", border: 4 });
+  const d = data
+    .flatMap((row, y) => row.map((dark, x) => (dark ? `M${x} ${y}h1v1h-1z` : "")))
+    .join("");
+  return (
+    <svg
+      role="img"
+      aria-label="共有URLのQRコード"
+      viewBox={`0 0 ${size} ${size}`}
+      width="240"
+      height="240"
+      shape-rendering="crispEdges"
+    >
+      <rect width={size} height={size} fill="#fff" />
+      <path d={d} fill="#000" />
+    </svg>
+  );
+};
 
 export const TagSettings = (props: { tags: Tag[]; name: string; invalid: boolean }) => (
   <>
