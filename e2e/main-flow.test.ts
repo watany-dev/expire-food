@@ -55,6 +55,7 @@ test("手入力で登録し、色分け・編集・削除をして、共有URL�
   try {
     const otherPage = await other.newPage();
     await otherPage.goto(shareUrl);
+    await otherPage.getByRole("button", { name: "この一覧を開く" }).click();
     await expect(otherPage.locator("li.item .name")).toHaveText(["卵（10個入り）", "缶詰"]);
   } finally {
     await other.close();
