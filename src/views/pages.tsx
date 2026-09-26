@@ -1,63 +1,94 @@
-import { daysLeftLabel, itemStatus } from "../domain/status";
+import { shortDate } from "../domain/date";
+import { daysLeftLabel, groupByDeadline, itemStatus } from "../domain/status";
 import type { Item } from "../domain/schema";
 
 const kindLabel = { best_by: "賞味期限", use_by: "消費期限" } as const;
+const kindShort = { best_by: "賞味", use_by: "消費" } as const;
+
+const LATER_VISIBLE = 2;
 
 type ListedItem = Item & { days_left: number };
 
-export const ItemList = (props: { items: ListedItem[]; warnDays: number; lostSpace: boolean }) => (
-  <>
-    <header>
-      <h1>期限メモ</h1>
-      <a href="/settings">設定</a>
-    </header>
-    {props.lostSpace ? (
-      <p class="notice" role="alert">
-        この端末で使っていた一覧が見つかりません。共有URLが作り直された可能性があります。共有している人から新しい共有URLを受け取って開いてください（このまま追加すると別の新しい一覧になります）。
-      </p>
-    ) : null}
-    <p>
-      <a class="button" href="/items/new">
-        ＋ 追加
-      </a>
-    </p>
-    {props.items.length === 0 ? (
-      <p>まだ登録がありません。</p>
-    ) : (
-      <ul class="items">
-        {props.items.map((item) => (
-          <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
-            <a class="name" href={`/items/${item.id}/edit`}>
-              {item.name}
-            </a>
-            <span class="meta">
-              {kindLabel[item.kind]} {item.expires_on}
-            </span>
-            <span class="days">{daysLeftLabel(item.days_left)}</span>
-            <button class="delete secondary" type="button" popovertarget={`delete-${item.id}`}>
-              削除
-            </button>
-            {/* popover 属性で JS なしに確認ダイアログを出す（要件 4.3） */}
-            <div popover="auto" id={`delete-${item.id}`}>
-              <p>「{item.name}」を削除しますか？</p>
-              <form class="actions" method="post" action={`/items/${item.id}/delete`}>
-                <button class="danger">削除する</button>
-                <button
-                  class="secondary"
-                  type="button"
-                  popovertarget={`delete-${item.id}`}
-                  popovertargetaction="hide"
-                >
-                  やめる
-                </button>
-              </form>
-            </div>
-          </li>
-        ))}
-      </ul>
-    )}
-  </>
-);
+export const ItemList = (props: {
+  items: ListedItem[];
+  warnDays: number;
+  today: string;
+  lostSpace: boolean;
+}) => {
+  const row = (item: ListedItem) => (
+    <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
+      {/* 左にスワイプすると削除ボタンが出る。横スクロールと scroll-snap だけで作り、JS は使わない（ADR 0009） */}
+      <div class="swipe">
+        <a class="row" href={`/items/${item.id}/edit`}>
+          <span class="name">{item.name}</span>
+          <span class="meta">
+            {kindShort[item.kind]} {shortDate(item.expires_on, props.today)}
+          </span>
+          <span class="days">{daysLeftLabel(item.days_left)}</span>
+        </a>
+        <button class="delete danger" type="button" popovertarget={`delete-${item.id}`}>
+          削除
+        </button>
+      </div>
+      {/* popover 属性で JS なしに確認ダイアログを出す（要件 4.3） */}
+      <div popover="auto" id={`delete-${item.id}`}>
+        <p>「{item.name}」を削除しますか？</p>
+        <form class="actions" method="post" action={`/items/${item.id}/delete`}>
+          <button class="danger">削除する</button>
+          <button
+            class="secondary"
+            type="button"
+            popovertarget={`delete-${item.id}`}
+            popovertargetaction="hide"
+          >
+            やめる
+          </button>
+        </form>
+      </div>
+    </li>
+  );
+  return (
+    <>
+      <header>
+        <h1>期限メモ</h1>
+        <nav>
+          <a class="button" href="/items/new">
+            ＋ 追加
+          </a>
+          <a href="/settings">設定</a>
+        </nav>
+      </header>
+      {props.lostSpace ? (
+        <p class="notice" role="alert">
+          この端末で使っていた一覧が見つかりません。共有URLが作り直された可能性があります。共有している人から新しい共有URLを受け取って開いてください（このまま追加すると別の新しい一覧になります）。
+        </p>
+      ) : null}
+      {props.items.length === 0 ? (
+        <p>まだ登録がありません。</p>
+      ) : (
+        groupByDeadline(props.items, props.warnDays).map((group) => {
+          const shown = group.key === "later" ? group.items.slice(0, LATER_VISIBLE) : group.items;
+          const rest = group.items.slice(shown.length);
+          return (
+            <section>
+              <h2 class="group">
+                <span>{group.label}</span>
+                <span>{group.items.length}件</span>
+              </h2>
+              <ul class="items">{shown.map(row)}</ul>
+              {rest.length > 0 ? (
+                <details>
+                  <summary>残り {rest.length} 件を表示</summary>
+                  <ul class="items">{rest.map(row)}</ul>
+                </details>
+              ) : null}
+            </section>
+          );
+        })
+      )}
+    </>
+  );
+};
 
 type ItemFormValues = Partial<Record<"name" | "expires_on" | "kind" | "memo", string>>;
 export type ItemField = keyof ItemFormValues;

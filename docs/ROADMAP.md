@@ -104,6 +104,7 @@
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）
 - [x] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト（`src/domain/status.ts`）
 - [x] 閲覧系の画面ではスペースを発行せず、書き込み時に発行する（ADR 0001 の `/` の扱いを更新）
+- [x] 一覧を 1 行に詰め、期限切れ / N日以内 / それ以降に区切って遠いものを畳む。削除ボタンは左スワイプで出す（[ADR 0009](./adr/0009-compact-list.md)）
 
 ## Phase 3: 写真からの AI 抽出
 
