@@ -80,7 +80,7 @@ CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... bun run usage
 GraphQL Analytics API から、アカウント全体の 1 日あたりの消費（Workers のリクエスト数、Workers AI の Neurons、D1 の読み書き行数）を直近 7 日分（UTC。無料枠は UTC 0 時にリセット）、無料枠に対する割合付きで出す。どれかが 8 割を超えた日があれば `!`（上限到達は `✗`）を付けて終了コード 1 になる（取得に失敗したときは 2）。トークンはデプロイ用とは別に、Account / Account Analytics: Read だけのものを作る。
 
 - Workers AI が上限に達するとその日の読み取りは失敗し、画面は手入力に戻る（ADR 0003）。1 回あたりの Neurons は、読み取りの回数と見比べてモデル選定（Phase 3 の残タスク）の材料にする
-- Workers Logs のイベント数は 1 リクエストにつき 1〜2 件（呼び出しのログと `web-vitals` のログ）なので、リクエスト数が無料枠に収まっていれば Workers Logs の無料枠にも収まる
+- Workers Logs のイベント数は 1 リクエストにつき 0〜1 件（`web-vitals` のログ。呼び出しのログは共有 URL を残さないよう切っている。[ADR 0012](docs/adr/0012-space-id-exposure.md)）なので、リクエスト数が無料枠に収まっていれば Workers Logs の無料枠にも収まる
 
 ### 読み取りモデルの比較
 

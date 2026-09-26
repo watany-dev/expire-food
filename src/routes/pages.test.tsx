@@ -144,6 +144,15 @@ describe("追加", () => {
     expect(html).toMatch(/value="best_by" required="" checked=""/);
   });
 
+  it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
+    const spaceId = await newSpaceWith({ ...milk, name: "𩸽".repeat(100), memo: "𩸽".repeat(500) });
+    expect(await itemIds(spaceId)).toHaveLength(1);
+  });
+
+  it("本文が 16KB を超えたら 413", async () => {
+    expect((await post("/items", { ...milk, memo: "a".repeat(16 * 1024) })).status).toBe(413);
+  });
+
   it("写真の読み取りは JS が表示するまで隠し、同一オリジンのスクリプトだけを許可する", async () => {
     const res = await app.request("/items/new");
     const csp = res.headers.get("content-security-policy") ?? "";
@@ -543,6 +552,20 @@ describe("共有 URL", () => {
       }
     },
   );
+
+  it("space_id や商品を含む応答はキャッシュさせない", async () => {
+    const spaceId = await newSpaceWith();
+    const responses = await Promise.all([
+      get("/", spaceId),
+      get("/settings", spaceId),
+      get(`/s/${spaceId}`),
+      post(`/s/${spaceId}`, {}),
+      get("/s/00000000-0000-4000-8000-000000000000"),
+      get("/api/items", spaceId),
+      post("/items", milk, spaceId),
+    ]);
+    for (const res of responses) expect(res.headers.get("cache-control")).toBe("no-store");
+  });
 
   it("Cookie が無ければ共有 URL を出さない", async () => {
     const html = await (await get("/settings")).text();
