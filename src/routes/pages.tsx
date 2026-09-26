@@ -94,6 +94,7 @@ export const pages = new Hono<{ Bindings: Env }>()
           warnDays={DEFAULT_WARN_DAYS}
           today={today}
           lostSpace={present}
+          deleted={undefined}
         />,
       );
     }
@@ -113,6 +114,8 @@ export const pages = new Hono<{ Bindings: Env }>()
         warnDays={list.warnDays}
         today={today}
         lostSpace={false}
+        // 誰でも作れるリンクなので、任意の長文を出させないよう商品名の上限で切る
+        deleted={c.req.query("deleted")?.slice(0, 100)}
       />,
     );
   })
@@ -185,7 +188,7 @@ export const pages = new Hono<{ Bindings: Env }>()
       const query = new URLSearchParams({ kind: item.kind, tag: item.tag_id ?? "" });
       return c.redirect(`/items/new?${query.toString()}`, 303);
     }
-    if (item) return c.redirect("/", 303);
+    if (item) return c.redirect(`/#item-${item.id}`, 303);
     const message = `1つの一覧に登録できる商品は${MAX_ITEMS}件までです。使い終わった商品を削除してください。`;
     return render(c, "登録できません", <LimitReached message={message} back="/" />, 409);
   })
@@ -230,13 +233,19 @@ export const pages = new Hono<{ Bindings: Env }>()
       );
     }
     const item = await updateItem(c.env.DB, spaceId, c.req.param("id"), parsed.data);
-    return item ? c.redirect("/", 303) : render(c, "見つかりません", <NotFound />, 404);
+    return item
+      ? c.redirect(`/#item-${item.id}`, 303)
+      : render(c, "見つかりません", <NotFound />, 404);
   })
-  // 別の端末で先に削除されていても結果は同じなので、常に一覧へ戻す
+  // 別の端末で先に削除されていても結果は同じなので、常に一覧へ戻す（消したときだけ商品名を知らせる）
   .post("/items/:id/delete", findSpace, async (c) => {
     const spaceId = c.var.spaceId;
-    if (spaceId !== undefined) await deleteItem(c.env.DB, spaceId, c.req.param("id"));
-    return c.redirect("/", 303);
+    const name =
+      spaceId === undefined ? null : await deleteItem(c.env.DB, spaceId, c.req.param("id"));
+    return c.redirect(
+      name === null ? "/" : `/?${new URLSearchParams({ deleted: name }).toString()}`,
+      303,
+    );
   })
   .get("/tags", findSpace, async (c) => {
     const spaceId = c.var.spaceId;
