@@ -33,3 +33,22 @@ export const withRotatedAway = (env: Env, spaceId: string): Env => ({
         : (Reflect.get(db, key) as () => unknown).bind(db),
   }),
 });
+
+/** スペースの存在確認（resolveSpace）の直後に、別の端末が先に作り直して `spaceId` を消した状態を作る */
+export const withRemovedAfterCheck = (env: Env, spaceId: string): Env => {
+  const prepare = (sql: string) => {
+    const statement = env.DB.prepare(sql);
+    if (!sql.startsWith("SELECT 1 FROM spaces")) return statement;
+    return {
+      bind: (...values: unknown[]) => ({
+        first: async () => {
+          const row = await statement.bind(...values).first();
+          await env.DB.prepare("DELETE FROM spaces WHERE id = ?").bind(spaceId).run();
+          return row;
+        },
+      }),
+    };
+  };
+  // この経路で使うのは prepare だけ
+  return { ...env, DB: { prepare } as unknown as D1Database };
+};

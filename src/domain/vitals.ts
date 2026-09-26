@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 // 集計に要るのは画面の種類だけ。商品 ID などはログに残さない
 const PAGES: [RegExp, string][] = [
@@ -10,13 +10,13 @@ const PAGES: [RegExp, string][] = [
 
 const pageLabel = (path: string) => PAGES.find(([pattern]) => pattern.test(path))?.[1] ?? "other";
 
-const ms = z.number().min(0).max(60_000).optional().catch(undefined);
+const ms = z.catch(z.optional(z.number().check(z.minimum(0), z.maximum(60_000))), undefined);
 
 const beacon = z.object({
-  path: z.string().max(200).transform(pageLabel),
+  path: z.pipe(z.string().check(z.maxLength(200)), z.transform(pageLabel)),
   lcp: ms,
   inp: ms,
-  cls: z.number().min(0).max(100).optional().catch(undefined),
+  cls: z.catch(z.optional(z.number().check(z.minimum(0), z.maximum(100))), undefined),
 });
 
 export const parseVitals = (text: string) => {

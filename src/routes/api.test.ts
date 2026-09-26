@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv, withRotatedAway } from "../test-env";
+import { createTestEnv, withRemovedAfterCheck, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -218,6 +218,17 @@ describe("スペース分離", () => {
     expect(await res.json()).toEqual({ warn_days: 7 });
     expect(await (await call(a, "/api/space")).json()).toEqual({ warn_days: 7 });
     expect(await (await call(b, "/api/space")).json()).toEqual({ warn_days: 3 });
+  });
+
+  it("確認の直後に別の端末がスペースを作り直していても、warn_days は既定値を返す", async () => {
+    const id = await newSpace();
+    const res = await app.request(
+      "/api/space",
+      { headers: { cookie: `space_id=${id}` } },
+      withRemovedAfterCheck(env, id),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ warn_days: 3 });
   });
 
   it.each([0, 31])("warn_days: %i は 400", async (warn_days) => {

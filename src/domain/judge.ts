@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import type { Reading, Resolution } from "./extract";
 
@@ -34,19 +34,25 @@ export const judgeInput = (reading: Reading, resolution: Resolution): JudgeInput
   return Object.keys(questions).length > 0 ? { state: reading, questions } : null;
 };
 
-const answer = z.object({ choice: z.string(), confidence: z.number() }).catch({
+const answer = z.catch(z.object({ choice: z.string(), confidence: z.number() }), {
   choice: "",
   confidence: 0,
 });
-const answers = z.object({ name: answer.optional(), date: answer.optional() });
+const answers = z.object({ name: z.optional(answer), date: z.optional(answer) });
 // 応答の外側（answers の有無・result での包み）は揺れても読めるようにする
 const envelope = z.union([
-  z.object({ result: z.object({ answers }) }).transform((v) => v.result.answers),
-  z.object({ answers }).transform((v) => v.answers),
+  z.pipe(
+    z.object({ result: z.object({ answers }) }),
+    z.transform((v) => v.result.answers),
+  ),
+  z.pipe(
+    z.object({ answers }),
+    z.transform((v) => v.answers),
+  ),
   answers,
 ]);
 
-const picked = (a: z.infer<typeof answer> | undefined, options: string[]) =>
+const picked = (a: z.output<typeof answer> | undefined, options: string[]) =>
   a && a.confidence >= MIN_CONFIDENCE && options.includes(a.choice) ? a.choice : null;
 
 export const parseJudgement = (output: unknown, resolution: Resolution): Partial<Resolution> => {

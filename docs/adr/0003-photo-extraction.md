@@ -20,7 +20,7 @@ Phase 3 で、撮影した写真から商品名・期限日・種別を読み取
   - レート制限のキーは既存のスペースなら space_id、無ければ `cf-connecting-ip`
 - クライアント JS は `src/client/extract.js` を `?raw` で取り込み、`GET /extract.js` で配信する。CSP は `script-src 'self'` と `connect-src 'self'` を足す
   - ADR 0002 では nonce を足す想定だったが、Hono JSX は `<script>` の中身もエスケープするため、インラインではなく同一オリジンのファイルにした（`raw()` は Semgrep で禁止）
-  - URL にバージョンを含めないので `Cache-Control: no-cache`
+  - URL にバージョンを含めないので `Cache-Control: no-cache`（ADR 0010 で ETag を付け、変わっていなければ `304`）
   - 写真の入力欄は `hidden` で出力し、スクリプトが表示する。JS が無い・失敗した場合もフォームは手入力で使える
 
 ## 影響

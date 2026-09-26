@@ -1,4 +1,4 @@
-import { DEFAULT_WARN_DAYS, type Item, type ItemInput, type ItemPatch } from "../domain/schema";
+import type { Item, ItemInput, ItemPatch } from "../domain/schema";
 
 // items のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
 
@@ -30,11 +30,9 @@ export const rotateSpace = async (
   return (inserted?.meta.changes ?? 0) > 0;
 };
 
-export const getWarnDays = async (db: D1Database, spaceId: string): Promise<number> =>
-  (await db
-    .prepare("SELECT warn_days FROM spaces WHERE id = ?")
-    .bind(spaceId)
-    .first<number>("warn_days")) ?? DEFAULT_WARN_DAYS;
+// スペースが無ければ null（存在の確認を兼ねる）
+export const getWarnDays = (db: D1Database, spaceId: string): Promise<number | null> =>
+  db.prepare("SELECT warn_days FROM spaces WHERE id = ?").bind(spaceId).first<number>("warn_days");
 
 export const setWarnDays = async (
   db: D1Database,
@@ -44,15 +42,28 @@ export const setWarnDays = async (
   await db.prepare("UPDATE spaces SET warn_days = ? WHERE id = ?").bind(warnDays, spaceId).run();
 };
 
+const listItemsQuery = (db: D1Database, spaceId: string) =>
+  db
+    .prepare(
+      "SELECT id, name, expires_on, kind, memo, created_at FROM items WHERE space_id = ? ORDER BY expires_on, created_at, id",
+    )
+    .bind(spaceId);
+
 export const listItems = async (db: D1Database, spaceId: string): Promise<Item[]> =>
-  (
-    await db
-      .prepare(
-        "SELECT id, name, expires_on, kind, memo, created_at FROM items WHERE space_id = ? ORDER BY expires_on, created_at, id",
-      )
-      .bind(spaceId)
-      .all<Item>()
-  ).results;
+  (await listItemsQuery(db, spaceId).all<Item>()).results;
+
+// 一覧画面の分を 1 回の往復で読む。スペースが無ければ null（存在の確認を兼ねる）
+export const getList = async (
+  db: D1Database,
+  spaceId: string,
+): Promise<{ warnDays: number; items: Item[] } | null> => {
+  const [space, items] = await db.batch([
+    db.prepare("SELECT warn_days FROM spaces WHERE id = ?").bind(spaceId),
+    listItemsQuery(db, spaceId),
+  ]);
+  const row = space?.results[0] as { warn_days: number } | undefined;
+  return row ? { warnDays: row.warn_days, items: (items?.results ?? []) as Item[] } : null;
+};
 
 // 読み取り結果の商品名を照らし合わせる商品マスタの代わり（ADR 0007）
 export const listItemNames = async (db: D1Database, spaceId: string): Promise<string[]> =>
