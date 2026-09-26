@@ -9,10 +9,7 @@ export const daysLeftLabel = (daysLeft: number): string =>
 
 type Group<T> = { key: "expired" | "soon" | "later"; label: string; items: T[] };
 
-/**
- * 一覧を期限切れ・もうすぐ・それ以降に分ける。空の区分は返さない。
- * 期限間近（黄色）が「それ以降」に入って畳まれないよう、もうすぐの範囲は `warn_days` まで広げる
- */
+/** 期限間近（黄色）が「それ以降」に入って畳まれないよう、もうすぐの範囲は `warn_days` まで広げる */
 export const groupByDeadline = <T extends { days_left: number }>(
   items: T[],
   warnDays: number,
