@@ -377,7 +377,6 @@ describe("タグ", () => {
     expect([...html.matchAll(/class="name">([^<]+)</g)].map((m) => m[1])).toEqual(["ビール"]);
     expect(html).not.toContain('<span class="tag">');
     expect(html).toContain(`<a href="/?tag=${drink}" aria-current="page">酒</a>`);
-    // 絞り込み中に追加すると、そのタグを選んだフォームを開く
     expect(html).toContain(`href="/items/new?tag=${drink}"`);
     const form = await (await get(`/items/new?tag=${drink}`, spaceId)).text();
     expect(form).toContain(`<option value="${drink}" selected="">酒</option>`);

@@ -12,7 +12,6 @@ type ListedItem = Item & { days_left: number };
 export const ItemList = (props: {
   items: ListedItem[];
   tags: Tag[];
-  // 絞り込み中のタグ
   tag: Tag | undefined;
   warnDays: number;
   today: string;
@@ -76,7 +75,7 @@ export const ItemList = (props: {
           <a href="/settings">設定</a>
         </nav>
       </header>
-      {/* 左上のボタンから開く。popover なので JS は使わない（ADR 0011） */}
+      {/* popover で JS なしに開く（ADR 0011） */}
       <nav popover="auto" id="tag-menu" aria-label="タグ">
         <ul>
           <li>

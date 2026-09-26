@@ -196,7 +196,7 @@ export const pages = new Hono<{ Bindings: Env }>()
     await insertTag(c.env.DB, c.var.spaceId, parsed.data.name);
     return c.redirect("/tags", 303);
   })
-  // 付いていた商品はタグなしに戻る。別の端末で先に削除されていても結果は同じ
+  // 別の端末で先に削除されていても結果は同じなので、常にタグ画面へ戻す
   .post("/tags/:id/delete", resolveSpace, async (c) => {
     await deleteTag(c.env.DB, c.var.spaceId, c.req.param("id"));
     return c.redirect("/tags", 303);
