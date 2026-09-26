@@ -199,6 +199,17 @@ describe("追加", () => {
     expect(await res.text()).toContain(body);
   });
 
+  it("/app.js と /extract.js はトップレベルの名前が重ならない（同じページで読むと SyntaxError になる）", async () => {
+    const names = async (path: string) =>
+      new Set(
+        [...(await (await app.request(path)).text()).matchAll(/^(?:const|let|var) (\w+)/gm)].map(
+          (m) => m[1],
+        ),
+      );
+    const extract = await names("/extract.js");
+    expect([...(await names("/app.js"))].filter((name) => extract.has(name))).toEqual([]);
+  });
+
   it.each(["/app.js", "/extract.js"])(
     "%s が変わっていなければ 304 で本文を送らない",
     async (path) => {
