@@ -78,12 +78,13 @@ export const ItemList = (props: {
           <h1>{props.tag?.name ?? "期限メモ"}</h1>
         </div>
         <nav>
-          <a class="button" href={props.tag ? `/items/new?tag=${props.tag.id}` : "/items/new"}>
-            ＋ 追加
-          </a>
           <a href="/settings">設定</a>
         </nav>
       </header>
+      {/* 最も多い操作なので、片手の親指が届く右下に固定する */}
+      <a class="button fab" href={props.tag ? `/items/new?tag=${props.tag.id}` : "/items/new"}>
+        ＋ 追加
+      </a>
       {/* popover で JS なしに開く（ADR 0011） */}
       <nav popover="auto" id="tag-menu" aria-label="タグ">
         <ul>

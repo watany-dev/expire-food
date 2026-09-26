@@ -67,6 +67,8 @@ button:disabled{opacity:.5;cursor:default}
 .chips[hidden]{display:none}
 .welcome ol{padding-left:1.5rem}
 .welcome .button{display:block;padding:1rem;font-size:1.1rem;text-align:center}
+.fab{position:fixed;right:calc(1rem + env(safe-area-inset-right,0px));bottom:calc(1rem + env(safe-area-inset-bottom,0px));padding:1rem 1.5rem;border-radius:2rem;font-size:1.1rem;box-shadow:0 2px 8px rgb(0 0 0/.3)}
+main:has(.fab){padding-bottom:6rem}
 .notice{padding:.75rem;border-left:.5rem solid #e0a800;background:#fff4c2}
 `;
 
