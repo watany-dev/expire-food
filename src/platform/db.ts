@@ -1,4 +1,4 @@
-import { type Item, type ItemInput, type ItemPatch } from "../domain/schema";
+import type { Item, ItemInput, ItemPatch } from "../domain/schema";
 
 // items のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
 
