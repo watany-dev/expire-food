@@ -168,6 +168,7 @@ export const ItemForm = (props: {
   values: ItemFormValues;
   errors: ReadonlySet<ItemField>;
   tags: Tag[];
+  names?: string[];
   addNext?: boolean;
   deleteAction?: string;
 }) => {
@@ -219,8 +220,12 @@ export const ItemForm = (props: {
             list="name-candidates"
             {...invalid("name")}
           />
-          {/* 読み取りで商品名を決めきれなかったときの候補（/extract.js が入れる） */}
-          <datalist id="name-candidates" />
+          {/* 登録済みの商品名。読み取りで商品名を決めきれなかったときは /extract.js がその候補を先頭に足す */}
+          <datalist id="name-candidates">
+            {props.names?.map((name) => (
+              <option value={name} />
+            ))}
+          </datalist>
           <FieldError field="name" errors={errors} />
         </p>
         <p>
