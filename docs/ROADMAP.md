@@ -110,6 +110,7 @@
 - [x] 追加フォームの「保存して次を追加」: 直前のタグと種別をクエリで引き継いで `/items/new` へ戻る（#34。JS なし）
 - [x] 削除（`popover` の確認ダイアログ → 承認時のみ削除）
 - [x] 編集画面の下にも削除ボタン（スワイプに気づかない人向け。確認ダイアログは一覧と共通。#37）
+- [x] 期限切れのまとめて削除（`POST /items/delete-expired`。JST の今日より前・自分のスペースだけ。絞り込み中はそのタグだけ。#42）
 - [x] 保存・削除の結果を知らせる: 保存後は `/#item-<id>` へ戻して `:target` で行を強調、削除後は `/?deleted=<商品名>` で「◯◯を削除しました」（#36。JS なし）
 - [x] 設定: `warn_days` の変更
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）

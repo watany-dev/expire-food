@@ -8,13 +8,16 @@ import type { Child } from "hono/jsx";
 import { daysUntil, todayJst } from "../domain/date";
 import {
   DEFAULT_WARN_DAYS,
+  expiresOn as expiresOnSchema,
   itemInput,
   MAX_ITEMS,
   MAX_TAGS,
+  spaceId as spaceIdSchema,
   spacePatch,
   tagInput,
 } from "../domain/schema";
 import {
+  deleteExpiredItems,
   deleteItem,
   deleteTag,
   getItem,
@@ -77,6 +80,16 @@ const shareUrl = (c: Context, spaceId: string) => new URL(`/s/${spaceId}`, c.req
 const invalidFields = (issues: readonly { path: readonly PropertyKey[] }[]) =>
   new Set(issues.map((issue) => issue.path[0] as ItemField));
 
+// 削除の結果の知らせ。誰でも作れるリンクなので、任意の長文を出させないよう商品名の上限で切り、件数は数字だけにする
+const deletedNotice = (c: Context): string | undefined => {
+  const name = c.req.query("deleted");
+  if (name !== undefined) return `「${name.slice(0, 100)}」を削除しました。`;
+  const count = c.req.query("expired");
+  return count && /^[1-9]\d{0,2}$/.test(count)
+    ? `期限切れの商品を${count}件削除しました。`
+    : undefined;
+};
+
 // 閲覧系（GET）はスペースを発行しない。書き込み系（POST）で初めて発行する（ADR 0002）
 export const pages = new Hono<{ Bindings: Env }>()
   // 最も開かれる画面なので、スペースの確認と一覧の読み込みを 1 回の往復にまとめる（findSpace を通さない）
@@ -115,8 +128,7 @@ export const pages = new Hono<{ Bindings: Env }>()
         warnDays={list.warnDays}
         today={today}
         lostSpace={false}
-        // 誰でも作れるリンクなので、任意の長文を出させないよう商品名の上限で切る
-        deleted={c.req.query("deleted")?.slice(0, 100)}
+        deleted={deletedNotice(c)}
       />,
     );
   })
@@ -219,6 +231,29 @@ export const pages = new Hono<{ Bindings: Env }>()
         deleteAction={`/items/${item.id}/delete`}
       />,
     );
+  })
+  // 一覧で確かめた期限切れをまとめて消す。絞り込み中はそのタグの分だけ（/items/:id より先に登録する）。
+  // 確認した後に JST の日付が変わっても、確認の件数に入っていない商品を消さないよう、一覧を出した日で数える
+  .post("/items/delete-expired", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    const before = expiresOnSchema.safeParse(c.req.query("before"));
+    const rawTag = c.req.query("tag");
+    const tag = spaceIdSchema.safeParse(rawTag);
+    if (spaceId === undefined || !before.success || (rawTag !== undefined && !tag.success)) {
+      return c.redirect("/", 303);
+    }
+    const tagId = tag.success ? tag.data : null;
+    const today = todayJst();
+    const count = await deleteExpiredItems(
+      c.env.DB,
+      spaceId,
+      before.data < today ? before.data : today,
+      tagId,
+    );
+    const query = new URLSearchParams(tagId ? { tag: tagId } : {});
+    if (count > 0) query.set("expired", String(count));
+    const search = query.toString();
+    return c.redirect(search ? `/?${search}` : "/", 303);
   })
   // 編集・削除は既存のスペースにしかできないので発行しない
   .post("/items/:id", findSpace, async (c) => {

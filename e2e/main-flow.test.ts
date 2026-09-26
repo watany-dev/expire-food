@@ -83,3 +83,15 @@ test("スワイプしなくても編集画面から削除できる", async ({ pa
   await expect(page.getByRole("status")).toHaveText("「豆腐」を削除しました。");
   await expect(page.getByText("まだ登録がありません。")).toBeVisible();
 });
+
+test("期限切れを確認のうえまとめて削除し、それ以外は残す", async ({ page }) => {
+  await page.goto("/");
+  await addItem(page, "牛乳", -1);
+  await addItem(page, "パン", -2);
+  await addItem(page, "缶詰", 30);
+  await page.getByRole("button", { name: "期限切れをまとめて削除" }).click();
+  await expect(page.getByText("期限切れ2件を削除しますか？")).toBeVisible();
+  await page.locator("#delete-expired").getByRole("button", { name: "削除する" }).click();
+  await expect(page.getByRole("status")).toHaveText("期限切れの商品を2件削除しました。");
+  await expect(page.locator("li.item .name")).toHaveText(["缶詰"]);
+});

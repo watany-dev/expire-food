@@ -2,7 +2,7 @@ import { z } from "zod/mini";
 
 const name = z.string().check(z.trim(), z.minLength(1), z.maxLength(100));
 // z.iso.date() はうるう年を含めて実在する日付だけを通す
-const expiresOn = z.iso.date();
+export const expiresOn = z.iso.date();
 const kind = z.enum(["best_by", "use_by"]);
 // 空文字は「メモなし」として NULL に揃える
 const memo = z.pipe(

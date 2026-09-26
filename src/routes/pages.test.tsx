@@ -486,6 +486,95 @@ describe("削除", () => {
     const long = await (await get(`/?deleted=${"a".repeat(101)}`, spaceId)).text();
     expect(long).toContain(`「${"a".repeat(100)}」を削除しました。`);
   });
+
+  const names = async (spaceId: string) =>
+    [...(await (await get("/", spaceId)).text()).matchAll(/class="name">([^<]+)</g)].map(
+      (m) => m[1],
+    );
+
+  it("期限切れ（JST の今日より前）だけをまとめて削除し、今日の期限と他スペースは残す", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // UTC では 10/4 だが JST では 10/5
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, name: "牛乳", expires_on: "2026-10-04" });
+    await post("/items", { ...milk, name: "パン", expires_on: "2026-09-30" }, spaceId);
+    await post("/items", { ...milk, name: "卵", expires_on: "2026-10-05" }, spaceId);
+    const other = await newSpaceWith({ ...milk, name: "他の牛乳", expires_on: "2026-10-01" });
+
+    const html = await (await get("/", spaceId)).text();
+    expect(html).toContain('<button class="danger" type="button" popovertarget="delete-expired">');
+    expect(html).toContain("<p>期限切れ2件を削除しますか？</p>");
+    expect(html).toContain('action="/items/delete-expired?before=2026-10-05"');
+
+    const res = await post("/items/delete-expired?before=2026-10-05", {}, spaceId);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/?expired=2");
+    expect(await names(spaceId)).toEqual(["卵"]);
+    expect(await names(other)).toEqual(["他の牛乳"]);
+    expect(await (await get("/?expired=2", spaceId)).text()).toContain(
+      '<p class="notice" role="status">期限切れの商品を2件削除しました。</p>',
+    );
+    // 期限切れが無ければボタンを出さない
+    expect(await (await get("/", spaceId)).text()).not.toContain("delete-expired");
+  });
+
+  it("タグで絞り込み中はそのタグの期限切れだけを削除し、絞り込みのまま戻る", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, name: "牛乳", expires_on: "2026-10-01" });
+    const drink = await addTag(spaceId, "酒");
+    await post(
+      "/items",
+      { ...milk, name: "ビール", expires_on: "2026-10-01", tag_id: drink },
+      spaceId,
+    );
+
+    const html = await (await get(`/?tag=${drink}`, spaceId)).text();
+    expect(html).toContain("<p>期限切れ1件を削除しますか？</p>");
+    expect(html).toContain(`action="/items/delete-expired?before=2026-10-05&amp;tag=${drink}"`);
+
+    const res = await post(`/items/delete-expired?before=2026-10-05&tag=${drink}`, {}, spaceId);
+    expect(res.headers.get("location")).toBe(`/?tag=${drink}&expired=1`);
+    expect(await names(spaceId)).toEqual(["牛乳"]);
+  });
+
+  it("一覧を出した後に JST の日付が変わっても、確認した日の期限切れだけを消す", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, name: "牛乳", expires_on: "2026-10-04" });
+    await post("/items", { ...milk, name: "卵", expires_on: "2026-10-05" }, spaceId);
+    // 10/5 に一覧を出し、10/6 になってから確定した。未来の日付を送られても今日で抑える
+    vi.setSystemTime(new Date("2026-10-05T15:00:00Z"));
+    const res = await post("/items/delete-expired?before=2026-10-05", {}, spaceId);
+    expect(res.headers.get("location")).toBe("/?expired=1");
+    expect(await names(spaceId)).toEqual(["卵"]);
+    await post("/items/delete-expired?before=2099-01-01", {}, spaceId);
+    expect(await names(spaceId)).toEqual([]);
+  });
+
+  it.each([
+    ["消すものが無い", "?before=2025-12-31", true],
+    ["Cookie が無い", "?before=2099-01-01", false],
+    ["日付が無い", "", true],
+    ["日付が不正", "?before=2026-02-30", true],
+    ["タグが不正（全体を消さない）", "?before=2099-01-01&tag=foo", true],
+  ])("%s なら何も消さずに一覧へ戻る", async (_, query, withCookie) => {
+    const spaceId = await newSpaceWith({ ...milk, expires_on: "2026-01-01" });
+    await post("/items", { ...milk, name: "卵", expires_on: "2099-01-02" }, spaceId);
+    const res = await post(`/items/delete-expired${query}`, {}, withCookie ? spaceId : undefined);
+    expect(res.headers.get("location")).toBe("/");
+    expect(await names(spaceId)).toEqual(["牛乳", "卵"]);
+  });
+
+  it.each(["0", "abc", "1000", "-1"])(
+    "件数の知らせは 1〜999 の数字だけ出す（%s）",
+    async (count) => {
+      const spaceId = await newSpaceWith();
+      expect(await (await get(`/?expired=${count}`, spaceId)).text()).not.toContain(
+        "件削除しました",
+      );
+    },
+  );
 });
 
 /** タグを作り、その ID を返す */

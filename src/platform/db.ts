@@ -201,6 +201,22 @@ export const deleteItem = async (
       .first<{ name: string }>()
   )?.name ?? null;
 
+// JST の今日より前の商品を消す。tagId があればそのタグの商品だけ。消した件数を返す
+export const deleteExpiredItems = async (
+  db: D1Database,
+  spaceId: string,
+  today: string,
+  tagId: string | null,
+): Promise<number> =>
+  (
+    await db
+      .prepare(
+        "DELETE FROM items WHERE space_id = ?1 AND expires_on < ?2 AND (?3 IS NULL OR tag_id = ?3)",
+      )
+      .bind(spaceId, today, tagId)
+      .run()
+  ).meta.changes;
+
 export const getItem = (db: D1Database, spaceId: string, id: string): Promise<Item | null> =>
   db
     .prepare(

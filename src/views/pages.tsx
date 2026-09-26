@@ -133,7 +133,7 @@ export const ItemList = (props: {
       ) : null}
       {props.deleted === undefined ? null : (
         <p class="notice" role="status">
-          「{props.deleted}」を削除しました。
+          {props.deleted}
         </p>
       )}
       {props.items.length === 0 ? (
@@ -153,6 +153,24 @@ export const ItemList = (props: {
                 <span>{group.items.length}件</span>
               </h2>
               <ul class="items">{shown.map(row)}</ul>
+              {/* 期限切れは自動で消さない（要件 4.2）ので、溜まったらまとめて消せるようにする */}
+              {group.key === "expired" ? (
+                <>
+                  <p class="bulk">
+                    <button class="danger" type="button" popovertarget="delete-expired">
+                      期限切れをまとめて削除
+                    </button>
+                  </p>
+                  <ConfirmDelete
+                    id="delete-expired"
+                    message={`期限切れ${group.items.length}件を削除しますか？`}
+                    action={`/items/delete-expired?${new URLSearchParams({
+                      before: props.today,
+                      ...(props.tag ? { tag: props.tag.id } : {}),
+                    }).toString()}`}
+                  />
+                </>
+              ) : null}
               {rest.length > 0 ? (
                 <details>
                   <summary>残り {rest.length} 件を表示</summary>
