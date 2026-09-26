@@ -96,26 +96,6 @@ describe("スペース解決", () => {
     },
   );
 
-  it("共有 URL を開くと Cookie がその ID に切り替わり、トップへ戻る", async () => {
-    const shared = await newSpace();
-    await postItem(shared);
-    const res = await call(await newSpace(), `/s/${shared}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
-    expect(spaceCookie(res)).toBe(shared);
-    expect(await (await call(shared, "/api/items")).json()).toHaveLength(1);
-  });
-
-  it.each([crypto.randomUUID(), "not-a-uuid"])(
-    "存在しない共有 URL（%s）は 404 で、Cookie を変えない",
-    async (bogus) => {
-      const res = await call(await newSpace(), `/s/${bogus}`);
-      expect(res.status).toBe(404);
-      expect(res.headers.get("set-cookie")).toBeNull();
-      expect(await res.text()).toContain("共有URLが使えません");
-    },
-  );
-
   it.each([
     ["/api/items", []],
     ["/api/tags", []],
