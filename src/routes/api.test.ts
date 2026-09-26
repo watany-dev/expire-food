@@ -486,12 +486,14 @@ describe("/api/extract", () => {
       ipLimiter = allow,
       headers = {} as Record<string, string>,
       part = undefined as string | undefined,
+      judge = undefined as string | undefined,
       spaceId = undefined as string | undefined,
     } = {},
   ) => {
     const body = new FormData();
     body.append("image", image);
     if (part !== undefined) body.append("part", part);
+    if (judge !== undefined) body.append("judge", judge);
     return app.request(
       "/api/extract",
       {
@@ -562,13 +564,23 @@ describe("/api/extract", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
-  it("コードで決まらなければ判定モデル（Jev）に候補から選ばせる", async () => {
+  it("既定では判定モデル（Jev）を呼ばず、候補を返す", async () => {
+    const run = aiRun(async () => chat({ ...milkReading, names: ["明治", "おいしい牛乳"] }));
+    const res = await extract(jpeg(), { run });
+    expect(await res.json()).toMatchObject({
+      name: null,
+      name_candidates: ["明治", "おいしい牛乳"],
+    });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("高補正モード（judge=on）でコードで決まらなければ判定モデル（Jev）に候補から選ばせる", async () => {
     const run = aiRun(async (model) =>
       model === "typesafe/jev"
         ? { answers: { name: { choice: "おいしい牛乳", confidence: 0.9 } } }
         : chat({ ...milkReading, names: ["明治", "おいしい牛乳"] }),
     );
-    const res = await extract(jpeg(), { run });
+    const res = await extract(jpeg(), { run, judge: "on" });
     expect(await res.json()).toMatchObject({ name: "おいしい牛乳", next: "confirm" });
     expect(run).toHaveBeenLastCalledWith(
       "typesafe/jev",
@@ -582,7 +594,7 @@ describe("/api/extract", () => {
       if (model === "typesafe/jev") throw new Error("judge unavailable");
       return chat({ ...milkReading, names: ["明治", "おいしい牛乳"] });
     });
-    const res = await extract(jpeg(), { run, headers: { cookie: "" } });
+    const res = await extract(jpeg(), { run, judge: "on", headers: { cookie: "" } });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       name: null,

@@ -4,12 +4,13 @@ import { extname, join } from "node:path";
 import { todayJst } from "../src/domain/date";
 import { type EvalResult, evalCases, formatEval, parseRunResponse } from "../src/domain/evaluation";
 import { readingInput } from "../src/domain/extract";
+import type { JudgeInput } from "../src/domain/judge";
 import { extractItem } from "../src/domain/pipeline";
 import { extractForm } from "../src/domain/schema";
 import { JUDGE_MODEL, READ_MODEL } from "../src/platform/ai";
 
 // 実物パッケージの写真で読み取りモデルを比べる（README「読み取りモデルの比較」）。
-// 本番と同じ段階処理を通すので、曖昧な候補が残った写真では判定モデル（JUDGE_MODEL）も呼ぶ
+// 本番と同じ段階処理を通し、判定モデル（JUDGE_MODEL）なしと高補正モード（曖昧な候補が残ったら呼ぶ）を並べて出す
 const token = process.env.CLOUDFLARE_API_TOKEN;
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const [dir, ...args] = process.argv.slice(2);
@@ -64,28 +65,43 @@ const run = async (model: string, input: unknown): Promise<unknown> => {
 };
 
 const today = todayJst();
+// 本番と同じく、判定モデルの失敗は候補を返すだけにする
+const judge = (file: string) => (input: JudgeInput) =>
+  run(JUDGE_MODEL, input).catch((error: unknown) => {
+    console.error(`${file}: ${(error as Error).message}`);
+    return null;
+  });
 for (const model of models) {
-  const results: EvalResult[] = [];
+  const plain: EvalResult[] = [];
+  const judged: EvalResult[] = [];
   for (const { file, url } of images) {
     const expected = cases[file]!;
-    const started = performance.now();
-    try {
-      const actual = await extractItem({
+    const item = (read: () => Promise<unknown>, withJudge: boolean) =>
+      extractItem({
         part: "all",
         today,
-        read: () => run(model, readingInput(url, "all")),
-        // 本番と同じく、判定モデルの失敗は候補を返すだけにする
-        judge: (input) =>
-          run(JUDGE_MODEL, input).catch((error: unknown) => {
-            console.error(`${file}: ${(error as Error).message}`);
-            return null;
-          }),
+        read,
+        judge: withJudge ? judge(file) : undefined,
         knownNames: async () => [],
       });
-      results.push({ file, expected, actual, ms: performance.now() - started });
+    // 読み取りは 1 回だけ呼び、判定モデルなし（既定）と高補正モードの両方に通す（ADR 0013）
+    let reading: unknown;
+    const started = performance.now();
+    try {
+      const actual = await item(
+        async () => (reading = await run(model, readingInput(url, "all"))),
+        false,
+      );
+      const ms = performance.now() - started;
+      plain.push({ file, expected, actual, ms });
+      const judgeStarted = performance.now();
+      const withJudge = await item(async () => reading, true);
+      judged.push({ file, expected, actual: withJudge, ms: ms + performance.now() - judgeStarted });
     } catch (error) {
-      results.push({ file, expected, error: (error as Error).message });
+      plain.push({ file, expected, error: (error as Error).message });
+      judged.push({ file, expected, error: (error as Error).message });
     }
   }
-  console.info(`${formatEval(model, results)}\n`);
+  console.info(`${formatEval(model, plain)}\n`);
+  console.info(`${formatEval(`${model} + ${JUDGE_MODEL}`, judged)}\n`);
 }

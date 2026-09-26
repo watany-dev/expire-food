@@ -29,7 +29,7 @@ export const extract = new Hono<{ Bindings: Env }>().post(
   bodyLimit({ maxSize: MAX_IMAGE_BYTES + 16 * 1024 }),
   zValidator("form", extractForm),
   async (c) => {
-    const { image, part } = c.req.valid("form");
+    const { image, part, judge } = c.req.valid("form");
     const spaceId = c.var.spaceId;
     try {
       return c.json(
@@ -38,11 +38,14 @@ export const extract = new Hono<{ Bindings: Env }>().post(
           today: todayJst(),
           read: () => runReading(c.env.AI, image, part),
           // 判定に失敗しても候補を返してユーザーに選ばせる
-          judge: (input) =>
-            runJudge(c.env.AI, input).catch((error: unknown) => {
-              console.error("judge failed", error);
-              return null;
-            }),
+          judge:
+            judge === "on"
+              ? (input) =>
+                  runJudge(c.env.AI, input).catch((error: unknown) => {
+                    console.error("judge failed", error);
+                    return null;
+                  })
+              : undefined,
           knownNames: async () => (spaceId ? listItemNames(c.env.DB, spaceId) : []),
         }),
       );

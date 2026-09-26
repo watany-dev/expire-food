@@ -66,6 +66,8 @@ export const extractForm = z.object({
   ),
   // date は期限の部分だけを切り出した写真の再読（ADR 0007）
   part: z._default(z.enum(["all", "date"]), "all"),
+  // on のときだけ判定モデル（Jev）も使う。効果を比べるため既定は off（ADR 0013）
+  judge: z._default(z.enum(["off", "on"]), "off"),
 });
 
 export type ItemInput = z.output<typeof itemInput>;

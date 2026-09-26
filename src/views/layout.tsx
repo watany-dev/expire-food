@@ -50,13 +50,14 @@ details.qr[open] summary{display:list-item}
 form p{margin:0 0 1rem}
 label,legend{display:block;font-weight:bold}
 input,textarea,select{width:100%;min-height:44px;padding:.5rem;border:1px solid var(--field);border-radius:.5rem;background:var(--bg);color:var(--fg);font:inherit}
-input[type=radio]{width:auto;min-height:auto;margin-right:.25rem}
+input[type=radio],input[type=checkbox]{width:auto;min-height:auto;margin-right:.25rem}
 fieldset{border:0;padding:0;margin:0 0 1rem}
 fieldset label{display:inline-block;font-weight:normal;margin-right:1rem;padding:.5rem 0}
 .error{color:var(--danger);font-weight:bold}
 h2{font-size:1.2rem;margin:2rem 0 .5rem}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-#photo label{display:block;padding:1rem;font-size:1.1rem;text-align:center}
+#photo .button{display:block;padding:1rem;font-size:1.1rem;text-align:center}
+#photo .check{margin-top:.5rem;padding:.5rem 0;font-weight:normal}
 #photo-input:focus-visible+label{outline:2px solid var(--primary);outline-offset:2px}
 #photo-input:disabled+label{opacity:.5;cursor:default}
 #photo-thumb{display:block;max-width:6rem;max-height:6rem;margin-top:.5rem;border-radius:.25rem}
