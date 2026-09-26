@@ -234,7 +234,7 @@ CREATE INDEX idx_items_space_expires ON items(space_id, expires_on);
 ### 8.2 セキュリティ・制限
 
 - `space_id` は十分な長さのランダム値とし、連番や推測可能な値を使わない
-- `/api/extract` は space_id ごとにレート制限を設ける（例: 1分あたり10回）
+- `/api/extract` は space_id ごとにレート制限を設ける（例: 1分あたり10回）。スペースを量産して回避できないよう、接続元ごとにも制限する
 - 入力値のバリデーション（文字数上限、日付形式、kind の値）
 
 ### 8.3 コスト

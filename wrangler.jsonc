@@ -32,5 +32,15 @@
         "period": 60,
       },
     },
+    {
+      // /api/extract 用: 接続元（IPv6 は /64）ごとに 1 分あたり 30 回。スペースを量産して枠を増やせないようにする。
+      // 携帯回線の CGNAT などで同じ IP の後ろに他人がいるので、スペースごとの枠より緩くする
+      "name": "EXTRACT_IP_RATE_LIMITER",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 30,
+        "period": 60,
+      },
+    },
   ],
 }

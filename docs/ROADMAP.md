@@ -113,6 +113,7 @@
 - [x] クライアント（`src/client/extract.js` を `GET /extract.js` で配信）: `<input type="file" accept="image/*" capture="environment">`、Canvas で長辺 800px にリサイズ・JPEG 圧縮、2MB 超は送信しない
 - [x] `POST /api/extract`
   - `EXTRACT_RATE_LIMITER.limit({ key: spaceId })` で 10 回/分、超過は 429。読み取りではスペースを発行せず、スペースが無ければ IP をキーにする
+  - スペースを量産して回避できないよう、接続元（IPv6 は /64）ごとにも 30 回/分（`EXTRACT_IP_RATE_LIMITER`、#22）
   - 画像サイズ・MIME を検証（2MB 上限、JPEG / PNG / WebP）
   - Workers AI の Vision モデルに JSON のみを返すよう指示（当初は `@cf/meta/llama-4-scout-17b-16e-instruct`。ADR 0007 で Gemma 4 + Jev の段階処理に置き換え）
   - 画像はメモリ上のみで扱い、保存・ログ出力しない（Semgrep ルールで担保）

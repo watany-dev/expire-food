@@ -390,6 +390,7 @@ describe("/api/extract", () => {
     {
       run = aiRun(),
       limiter = allow,
+      ipLimiter = allow,
       headers = {} as Record<string, string>,
       part = undefined as string | undefined,
       spaceId = undefined as string | undefined,
@@ -409,7 +410,7 @@ describe("/api/extract", () => {
           ...headers,
         },
       },
-      { ...env, AI: asAi(run), EXTRACT_RATE_LIMITER: limiter },
+      { ...env, AI: asAi(run), EXTRACT_RATE_LIMITER: limiter, EXTRACT_IP_RATE_LIMITER: ipLimiter },
     );
   };
 
@@ -516,11 +517,27 @@ describe("/api/extract", () => {
   it("レート制限を超えたら 429 で AI を呼ばない。キーは space_id", async () => {
     const run = aiRun();
     const limiter = { limit: vi.fn(async () => ({ success: false })) };
-    const res = await extract(jpeg(), { run, limiter });
+    const ipLimiter = { limit: vi.fn(async () => ({ success: true })) };
+    const res = await extract(jpeg(), { run, limiter, ipLimiter });
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ error: "rate_limited" });
     expect(run).not.toHaveBeenCalled();
     expect(limiter.limit).toHaveBeenCalledWith({ key: spaceCookie(res) });
+    // 断ったリクエストで接続元の枠は減らさない
+    expect(ipLimiter.limit).not.toHaveBeenCalled();
+  });
+
+  it("スペースを量産しても、接続元（IPv6 は /64）ごとの上限で 429 になる", async () => {
+    const run = aiRun();
+    const ipLimiter = { limit: vi.fn(async () => ({ success: false })) };
+    const res = await extract(jpeg(), {
+      run,
+      ipLimiter,
+      headers: { "cf-connecting-ip": "2001:db8:1:2::abcd" },
+    });
+    expect(res.status).toBe(429);
+    expect(run).not.toHaveBeenCalled();
+    expect(ipLimiter.limit).toHaveBeenCalledWith({ key: "ip:2001:db8:1:2::/64" });
   });
 
   it.each([
@@ -528,10 +545,12 @@ describe("/api/extract", () => {
     [{}, "ip:"],
   ])("スペースが無ければ発行せず、IP（%j）ごとに数える", async (ip, key) => {
     const limiter = { limit: vi.fn(async () => ({ success: true })) };
-    const res = await extract(jpeg(), { limiter, headers: { cookie: "", ...ip } });
+    const ipLimiter = { limit: vi.fn(async () => ({ success: true })) };
+    const res = await extract(jpeg(), { limiter, ipLimiter, headers: { cookie: "", ...ip } });
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
     expect(limiter.limit).toHaveBeenCalledWith({ key });
+    expect(ipLimiter.limit).toHaveBeenCalledWith({ key });
   });
 
   it("読み取りモデルが失敗したら 502（画像はログに出さない）", async () => {
