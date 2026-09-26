@@ -29,16 +29,8 @@
 
 ## デプロイ（Phase 5）
 
-- Settings → Environments に `production` を作る
-  - **Required reviewers**: 自分（将来は 2 人目）
-  - **Deployment branches**: `main` のみ
-  - Secret `CLOUDFLARE_API_TOKEN` は Environment 側に置く（リポジトリ secret にしない）
-- Settings → Secrets and variables → Actions → **Variables** にリポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` を置く
-  - `deploy.yml` はこの変数が無い間ジョブを実行しない（本番 D1 を作るまで main への push を赤くしないため）。ジョブの `if` からは Environment の変数を読めないのでリポジトリ変数にする。アカウント ID は秘密情報ではない
-- Cloudflare の API トークンはカスタムトークンで、対象アカウントに限定し次の権限だけ付ける
-  - Account / Workers Scripts: Edit
-  - Account / D1: Edit
-  - Account / Workers AI: Edit（Read で足りるならそちら）
+`production` Environment・`CLOUDFLARE_API_TOKEN`・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID`・デプロイ用トークンは `infra/` の Terraform で作る（手順は README「初回（Terraform）」、決定は [ADR 0005](./adr/0005-deploy-and-e2e.md) と [ADR 0008](./adr/0008-terraform-infra.md)）。
+
 - 無料枠の確認（`bun run usage`）には、これとは別に Account / Account Analytics: Read だけのトークンを手元で使う（GitHub には置かない）
 - SLSA provenance（署名付きビルド来歴）は配布物のある CLI 向けのため入れない
 
