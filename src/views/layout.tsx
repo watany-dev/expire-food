@@ -65,6 +65,8 @@ h2{font-size:1.2rem;margin:2rem 0 .5rem}
 button:disabled{opacity:.5;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
 .chips[hidden]{display:none}
+.welcome ol{padding-left:1.5rem}
+.welcome .button{display:block;padding:1rem;font-size:1.1rem;text-align:center}
 .notice{padding:.75rem;border-left:.5rem solid #e0a800;background:#fff4c2}
 `;
 
