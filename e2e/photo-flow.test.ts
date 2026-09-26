@@ -106,3 +106,40 @@ test("動きを減らす設定ではスピナーを回さない", async ({ page 
   await expect(spinner).toBeVisible();
   await expect(spinner).toHaveCSS("animation-name", "none");
 });
+
+test("登録済みの商品名を候補に出し、読み取りの候補はその前に足す", async ({ page }) => {
+  await page.goto("/items/new");
+  await page.getByLabel("商品名").fill("牛乳");
+  await page.getByLabel("期限日").fill("2099-01-01");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page).toHaveURL(/\/#item-/);
+
+  const candidates = page.locator("#name-candidates option");
+  let names: string[] = [];
+  await page.route("/api/extract", (route) =>
+    route.fulfill({
+      json: reading({
+        expires_on: "2099-01-02",
+        kind: "use_by",
+        confidence: "high",
+        name_candidates: names,
+      }),
+    }),
+  );
+  await page.goto("/items/new");
+  await expect(candidates).toHaveCount(1);
+  await expect(candidates).toHaveAttribute("value", "牛乳");
+
+  // 登録済みの商品名しか無ければ「候補から選ぶ」とは言わない
+  await page.getByLabel("撮影して読み取る").setInputFiles(photo);
+  await expect(page.getByRole("status")).toHaveText("商品名を入力してください。");
+  await expect(candidates).toHaveCount(1);
+
+  // 登録済みと同じ名前は重ねて出さない
+  names = ["明治", "牛乳"];
+  await page.getByLabel("撮影して読み取る").setInputFiles(photo);
+  await expect(page.getByRole("status")).toHaveText("商品名を候補から選ぶか入力してください。");
+  expect(
+    await candidates.evaluateAll((options) => options.map((o) => o.getAttribute("value"))),
+  ).toEqual(["明治", "牛乳"]);
+});

@@ -214,6 +214,21 @@ describe("追加", () => {
     expect(html).toContain('name="next" value="1"');
   });
 
+  it("登録済みの商品名（重複なし・自分のスペースだけ）を商品名の候補に出す", async () => {
+    const spaceId = await newSpaceWith();
+    await post("/items", { ...milk, name: "卵" }, spaceId);
+    await post("/items", milk, spaceId);
+    await newSpaceWith({ ...milk, name: "ビール" });
+    const candidates = (html: string) =>
+      /<datalist id="name-candidates">(.*?)<\/datalist>/.exec(html)?.[1];
+    const form = await (await get("/items/new", spaceId)).text();
+    expect(candidates(form)).toBe('<option value="卵"></option><option value="牛乳"></option>');
+    // 入力エラーで出し直したフォームにも出す
+    const invalid = await (await post("/items", { ...milk, name: "" }, spaceId)).text();
+    expect(candidates(invalid)).toBe(candidates(form));
+    expect(candidates(await (await app.request("/items/new")).text())).toBe("");
+  });
+
   it("引き継ぐ種別が不正なら賞味期限を選んでおく", async () => {
     const html = await (await app.request("/items/new?kind=foo")).text();
     expect(html).toMatch(/value="best_by" required="" checked=""/);

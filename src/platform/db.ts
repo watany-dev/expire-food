@@ -105,14 +105,27 @@ export const deleteTag = async (db: D1Database, spaceId: string, id: string): Pr
   (await db.prepare("DELETE FROM tags WHERE id = ? AND space_id = ?").bind(id, spaceId).run()).meta
     .changes > 0;
 
+const listItemNamesQuery = (db: D1Database, spaceId: string) =>
+  db.prepare("SELECT DISTINCT name FROM items WHERE space_id = ? ORDER BY name").bind(spaceId);
+
 // 読み取り結果の商品名を照らし合わせる商品マスタの代わり（ADR 0007）
 export const listItemNames = async (db: D1Database, spaceId: string): Promise<string[]> =>
-  (
-    await db
-      .prepare("SELECT DISTINCT name FROM items WHERE space_id = ?")
-      .bind(spaceId)
-      .all<{ name: string }>()
-  ).results.map((row) => row.name);
+  (await listItemNamesQuery(db, spaceId).all<{ name: string }>()).results.map((row) => row.name);
+
+// 追加フォームのタグの選択肢と商品名の候補を 1 回の往復で読む
+export const getItemFormOptions = async (
+  db: D1Database,
+  spaceId: string,
+): Promise<{ tags: Tag[]; names: string[] }> => {
+  const [tags, names] = await db.batch([
+    listTagsQuery(db, spaceId),
+    listItemNamesQuery(db, spaceId),
+  ]);
+  return {
+    tags: (tags?.results ?? []) as Tag[],
+    names: ((names?.results ?? []) as { name: string }[]).map((row) => row.name),
+  };
+};
 
 // 上限に達していれば null
 export const insertItem = async (

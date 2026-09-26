@@ -18,6 +18,7 @@ import {
   deleteItem,
   deleteTag,
   getItem,
+  getItemFormOptions,
   getList,
   getWarnDays,
   insertItem,
@@ -145,7 +146,8 @@ export const pages = new Hono<{ Bindings: Env }>()
   // 絞り込み中の一覧から開いたら、そのタグを選んでおく。「保存して次を追加」では直前のタグと種別を引き継ぐ
   .get("/items/new", async (c) => {
     const { id } = spaceCookie(c);
-    const tags = id === undefined ? [] : await listTags(c.env.DB, id);
+    const { tags, names } =
+      id === undefined ? { tags: [], names: [] } : await getItemFormOptions(c.env.DB, id);
     const values = {
       tag_id: c.req.query("tag") ?? "",
       kind: c.req.query("kind") === "use_by" ? "use_by" : "best_by",
@@ -159,6 +161,7 @@ export const pages = new Hono<{ Bindings: Env }>()
         values={values}
         errors={new Set()}
         tags={tags}
+        names={names}
         addNext
       />,
     );
@@ -168,7 +171,7 @@ export const pages = new Hono<{ Bindings: Env }>()
     const parsed = itemInput.safeParse(values);
     if (!parsed.success) {
       const errors = invalidFields(parsed.error.issues);
-      const tags = await listTags(c.env.DB, c.var.spaceId);
+      const { tags, names } = await getItemFormOptions(c.env.DB, c.var.spaceId);
       return render(
         c,
         "追加",
@@ -178,6 +181,7 @@ export const pages = new Hono<{ Bindings: Env }>()
           values={values}
           errors={errors}
           tags={tags}
+          names={names}
           addNext
         />,
         400,

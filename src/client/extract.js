@@ -10,12 +10,15 @@ const crop = document.getElementById("crop");
 const canvas = document.getElementById("crop-canvas");
 const cropRead = document.getElementById("crop-read");
 const nameCandidates = document.getElementById("name-candidates");
+const knownNames = [...nameCandidates.options];
 const thumb = document.getElementById("photo-thumb");
 const THUMB_SIDE = 96;
 
 // 部分再読は縮小前の写真から切り出す（小さな印字を潰さない）
 let bitmap = null;
 let area = null;
+// 読み取りが商品名の候補を出したか（登録済みの商品名だけなら「候補から選ぶ」とは言わない）
+let suggested = false;
 
 const toJpeg = (source, sx, sy, sw, sh) => {
   const scale = Math.min(1, LONG_SIDE / Math.max(sw, sh));
@@ -72,10 +75,12 @@ const fill = (result, part) => {
   // 種別が読めなければ選択を変えずに確認を促す（追加フォームの初期値は賞味期限。要件 8.1）
   if (result.kind) input.form.elements.kind.value = result.kind;
   if (part === "all") {
+    suggested = result.name_candidates.length > 0;
     nameCandidates.replaceChildren(
       ...result.name_candidates.map((name) =>
         Object.assign(document.createElement("option"), { value: name }),
       ),
+      ...knownNames.filter((option) => !result.name_candidates.includes(option.value)),
     );
   }
   if (result.next === "retake") {
@@ -89,9 +94,7 @@ const fill = (result, part) => {
   // 部分再読のあとも、まだ空なら商品名を促す
   if (!document.getElementById("name").value) {
     notes.push(
-      nameCandidates.options.length > 0
-        ? "商品名を候補から選ぶか入力してください。"
-        : "商品名を入力してください。",
+      suggested ? "商品名を候補から選ぶか入力してください。" : "商品名を入力してください。",
     );
   }
   if (!result.expires_on) {
