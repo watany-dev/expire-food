@@ -735,6 +735,16 @@ describe("共有 URL", () => {
     expect(html).toContain('<form class="actions" method="post" action="/settings/rotate">');
   });
 
+  it("共有 URL の QR コードはサーバーで SVG にし、既定は畳んでおく", async () => {
+    const spaceId = await newSpaceWith();
+    const html = await (await get("/settings", spaceId)).text();
+    expect(html).toContain('<details class="qr"><summary>QRコードを表示</summary><svg role="img"');
+    const svg = /<svg[^>]*viewBox="0 0 (\d+) \1"[^>]*>.*?<path d="([^"]+)"/.exec(html);
+    // 36 文字の ID を含む URL が収まる大きさ（余白 4 モジュールずつ）で、暗いモジュールがある
+    expect(Number(svg?.[1])).toBeGreaterThanOrEqual(33 + 8);
+    expect(svg?.[2]).toMatch(/^(M\d+ \d+h1v1h-1z)+$/);
+  });
+
   it("入力エラーで出し直した設定画面にも共有 URL を出す", async () => {
     const spaceId = await newSpaceWith();
     const html = await (await post("/settings", { warn_days: "0" }, spaceId)).text();

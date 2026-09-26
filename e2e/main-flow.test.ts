@@ -56,6 +56,11 @@ test("手入力で登録し、色分け・編集・削除をして、共有URL�
 
   await page.getByRole("link", { name: "設定" }).click();
   const shareUrl = await page.getByLabel("共有URL", { exact: true }).inputValue();
+  // QR コードは既定で畳み、開くと見える
+  const qr = page.getByRole("img", { name: "共有URLのQRコード" });
+  await expect(qr).toBeHidden();
+  await page.getByText("QRコードを表示").click();
+  await expect(qr).toBeVisible();
 
   // Cookie を持たない別の端末
   const other = await browser.newContext();

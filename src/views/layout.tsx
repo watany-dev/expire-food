@@ -35,6 +35,8 @@ header .title h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .delete{flex:0 0 5rem;border-radius:0;scroll-snap-align:end}
 details summary{min-height:44px;padding:.6rem .75rem;color:#0b57d0;font-weight:bold;cursor:pointer;border-bottom:1px solid #ddd}
 details[open] summary{display:none}
+details.qr[open] summary{display:list-item}
+.qr svg{display:block;max-width:100%;height:auto;margin:1rem 0}
 .expired{color:#b3261e;border-left-color:#b3261e}
 .past_best{color:#5f6368;border-left-color:#9aa0a6}
 .warn{background:#fff4c2;border-left-color:#e0a800}
