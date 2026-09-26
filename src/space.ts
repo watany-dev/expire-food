@@ -44,6 +44,19 @@ export const saveSpaceCookie = (c: Context, id: string) => {
   });
 };
 
+/**
+ * 共有 URL を開く前の確認用（Cookie は変えない）。共有 URL のスペースが無ければ undefined。
+ * `switching` はこの端末で使っている別のスペースから切り替わるか（今の一覧を開けなくなる）
+ */
+export const peekSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: string) => {
+  const { id: current } = spaceCookie(c);
+  const [id, switching] = await Promise.all([
+    knownSpace(c, candidate),
+    current !== undefined && current !== candidate && spaceExists(c.env.DB, current),
+  ]);
+  return id === undefined ? undefined : { id, opened: id === current, switching };
+};
+
 export const openSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: string) => {
   const id = await knownSpace(c, candidate);
   if (id !== undefined) saveSpaceCookie(c, id);

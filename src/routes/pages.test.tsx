@@ -489,12 +489,77 @@ describe("設定", () => {
 });
 
 describe("共有 URL", () => {
+  it("開いただけでは Cookie を変えず、確認画面の POST で切り替えて一覧へ戻る", async () => {
+    const shared = await newSpaceWith();
+    const confirm = await get(`/s/${shared}`);
+    expect(confirm.status).toBe(200);
+    expect(confirm.headers.get("set-cookie")).toBeNull();
+    const html = await confirm.text();
+    expect(html).toContain(`<form class="actions" method="post" action="/s/${shared}">`);
+    expect(html).not.toContain('class="notice"');
+
+    const res = await post(`/s/${shared}`, {});
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    expect(spaceCookie(res)).toBe(shared);
+    expect(await itemIds(shared)).toHaveLength(1);
+  });
+
+  it("この端末で別の一覧を使っていれば、切り替わることを警告する", async () => {
+    const shared = await newSpaceWith();
+    const mine = await newSpaceWith();
+    const res = await get(`/s/${shared}`, mine);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.text()).toContain('<p class="notice" role="alert">');
+  });
+
+  it("今の Cookie のスペースが無くなっていれば警告しない", async () => {
+    const shared = await newSpaceWith();
+    const res = await get(`/s/${shared}`, crypto.randomUUID());
+    expect(await res.text()).not.toContain('class="notice"');
+  });
+
+  it("すでにその一覧を使っていれば確認せずに一覧へ戻る", async () => {
+    const shared = await newSpaceWith();
+    const res = await get(`/s/${shared}`, shared);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/");
+    expect(spaceCookie(res)).toBe(shared);
+  });
+
+  it("別のサイトからの POST では切り替えない", async () => {
+    const shared = await newSpaceWith();
+    const res = await app.request(
+      `/s/${shared}`,
+      {
+        method: "POST",
+        body: new URLSearchParams(),
+        headers: { origin: "https://evil.example", cookie: `space_id=${await newSpaceWith()}` },
+      },
+      env,
+    );
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it.each([crypto.randomUUID(), "not-a-uuid"])(
+    "存在しない共有 URL（%s）は 404 で、Cookie を変えない",
+    async (bogus) => {
+      for (const res of [await get(`/s/${bogus}`), await post(`/s/${bogus}`, {})]) {
+        expect(res.status).toBe(404);
+        expect(res.headers.get("set-cookie")).toBeNull();
+        expect(await res.text()).toContain("共有URLが使えません");
+      }
+    },
+  );
+
   it("space_id や商品を含む応答はキャッシュさせない", async () => {
     const spaceId = await newSpaceWith();
     const responses = await Promise.all([
       get("/", spaceId),
       get("/settings", spaceId),
       get(`/s/${spaceId}`),
+      post(`/s/${spaceId}`, {}),
       get("/s/00000000-0000-4000-8000-000000000000"),
       get("/api/items", spaceId),
       post("/items", milk, spaceId),

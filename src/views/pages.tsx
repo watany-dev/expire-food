@@ -396,6 +396,27 @@ export const TagSettings = (props: { tags: Tag[]; name: string; invalid: boolean
   </>
 );
 
+export const OpenSharedSpace = (props: { action: string; switching: boolean }) => (
+  <>
+    <h1>共有された一覧</h1>
+    <p>
+      この端末で共有URLの一覧を使います。開いた後に追加・編集した商品は、共有しているすべての端末から見えます。
+    </p>
+    {props.switching ? (
+      <p class="notice" role="alert">
+        この端末で使っている今の一覧から切り替わります。今の一覧に戻るにはその共有URLが要るので、先に
+        <a href="/settings">設定</a>で控えてください。
+      </p>
+    ) : null}
+    <form class="actions" method="post" action={props.action}>
+      <button>この一覧を開く</button>
+      <a class="button secondary" href="/">
+        やめる
+      </a>
+    </form>
+  </>
+);
+
 export const InvalidShareUrl = () => (
   <>
     <h1>共有URLが使えません</h1>

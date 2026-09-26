@@ -20,7 +20,14 @@ import {
   setWarnDays,
   updateItem,
 } from "../platform/db";
-import { findSpace, openSharedSpace, resolveSpace, saveSpaceCookie, spaceCookie } from "../space";
+import {
+  findSpace,
+  openSharedSpace,
+  peekSharedSpace,
+  resolveSpace,
+  saveSpaceCookie,
+  spaceCookie,
+} from "../space";
 import { Layout } from "../views/layout";
 import {
   InvalidShareUrl,
@@ -28,6 +35,7 @@ import {
   ItemForm,
   ItemList,
   NotFound,
+  OpenSharedSpace,
   Settings,
   TagSettings,
 } from "../views/pages";
@@ -100,11 +108,25 @@ export const pages = new Hono<{ Bindings: Env }>()
       />,
     );
   })
-  // 共有 URL。スペースを Cookie に保存して一覧へ戻す（機種変更・家族共有）。
-  // 作り直された旧 URL で別の空の一覧に入らないよう、見つからなければエラーにする（ADR 0004）
-  .get("/s/:spaceId", async (c) =>
+  // 共有 URL（機種変更・家族共有）。開くだけでは Cookie を変えず、確認画面の POST で切り替える。
+  // GET で切り替えると、他人の共有 URL を踏ませるだけでその人の一覧に書き込ませられる（ADR 0004）。
+  // 作り直された旧 URL で別の空の一覧に入らないよう、見つからなければエラーにする
+  .get("/s/:spaceId", async (c) => {
+    const shared = await peekSharedSpace(c, c.req.param("spaceId"));
+    if (shared === undefined) return render(c, "共有URLが使えません", <InvalidShareUrl />, 404);
+    if (shared.opened) {
+      saveSpaceCookie(c, shared.id);
+      return c.redirect("/");
+    }
+    return render(
+      c,
+      "共有された一覧",
+      <OpenSharedSpace action={`/s/${shared.id}`} switching={shared.switching} />,
+    );
+  })
+  .post("/s/:spaceId", async (c) =>
     (await openSharedSpace(c, c.req.param("spaceId")))
-      ? c.redirect("/")
+      ? c.redirect("/", 303)
       : render(c, "共有URLが使えません", <InvalidShareUrl />, 404),
   )
   .get("/app.js", etag(), (c) => script(c, appScript))
