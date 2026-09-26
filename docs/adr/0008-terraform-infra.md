@@ -11,7 +11,7 @@
 
 - `infra/` に Terraform を置き、次のものを管理する
   - Cloudflare: D1 `expire-food`（`prevent_destroy`）、デプロイ用のアカウントトークン（対象アカウントに限定し、Workers Scripts / D1 / Workers AI の Write だけ）
-  - GitHub: `production` Environment（承認者は自分、`main` のみ）、Environment secret `CLOUDFLARE_API_TOKEN`（上のトークンの値）、リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID`
+  - GitHub: `production` Environment（承認者は自分、`main` のみ）、Environment secret `CLOUDFLARE_API_TOKEN`（上のトークンの値）、リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID`、main の Ruleset（それまでの `.github/rulesets/main.json` を UI で取り込む方式をやめる）
 - state はローカルに置き、コミットしない（`.gitignore`）。apply も手元からだけ行う。CI で apply すると、トークンを発行できる強い権限を GitHub に置くことになるうえ、変更の頻度が低いので自動化しても得るものが少ない
 - Worker 本体のデプロイとマイグレーションは Terraform で持たず、これまでどおり `deploy.yml`（wrangler）で行う。同じものを二重に管理しないため
 - `database_id` は `terraform output` の値を `wrangler.jsonc` に書いてコミットする。D1 を作り直さない限り変わらないので、差し込む仕組みは作らない
