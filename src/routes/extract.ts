@@ -1,10 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 
 import { clientKey } from "../domain/client-key";
 import { todayJst } from "../domain/date";
 import { extractItem } from "../domain/pipeline";
-import { extractForm } from "../domain/schema";
+import { extractForm, MAX_IMAGE_BYTES } from "../domain/schema";
 import { runJudge, runReading } from "../platform/ai";
 import { listItemNames } from "../platform/db";
 import { findSpace } from "../space";
@@ -24,6 +25,8 @@ export const extract = new Hono<{ Bindings: Env }>().post(
     if (!allowed) return c.json({ error: "rate_limited" }, 429);
     await next();
   },
+  // multipart は全部読んでから検証されるので、読む前に止める。余裕は part と区切り線の分
+  bodyLimit({ maxSize: MAX_IMAGE_BYTES + 16 * 1024 }),
   zValidator("form", extractForm),
   async (c) => {
     const { image, part } = c.req.valid("form");

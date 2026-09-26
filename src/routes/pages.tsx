@@ -6,7 +6,14 @@ import type { Context } from "hono";
 import type { Child } from "hono/jsx";
 
 import { daysUntil, todayJst } from "../domain/date";
-import { DEFAULT_WARN_DAYS, itemInput, spacePatch, tagInput } from "../domain/schema";
+import {
+  DEFAULT_WARN_DAYS,
+  itemInput,
+  MAX_ITEMS,
+  MAX_TAGS,
+  spacePatch,
+  tagInput,
+} from "../domain/schema";
 import {
   deleteItem,
   deleteTag,
@@ -20,19 +27,28 @@ import {
   setWarnDays,
   updateItem,
 } from "../platform/db";
-import { findSpace, openSharedSpace, resolveSpace, saveSpaceCookie, spaceCookie } from "../space";
+import {
+  findSpace,
+  openSharedSpace,
+  peekSharedSpace,
+  resolveSpace,
+  saveSpaceCookie,
+  spaceCookie,
+} from "../space";
 import { Layout } from "../views/layout";
 import {
   InvalidShareUrl,
   type ItemField,
   ItemForm,
   ItemList,
+  LimitReached,
   NotFound,
+  OpenSharedSpace,
   Settings,
   TagSettings,
 } from "../views/pages";
 
-const render = (c: Context, title: string, children: Child, status: 200 | 400 | 404 = 200) =>
+const render = (c: Context, title: string, children: Child, status: 200 | 400 | 404 | 409 = 200) =>
   c.html(
     <Layout title={title} nonce={c.get("secureHeadersNonce")}>
       {children}
@@ -100,11 +116,25 @@ export const pages = new Hono<{ Bindings: Env }>()
       />,
     );
   })
-  // 共有 URL。スペースを Cookie に保存して一覧へ戻す（機種変更・家族共有）。
-  // 作り直された旧 URL で別の空の一覧に入らないよう、見つからなければエラーにする（ADR 0004）
-  .get("/s/:spaceId", async (c) =>
+  // 共有 URL（機種変更・家族共有）。開くだけでは Cookie を変えず、確認画面の POST で切り替える。
+  // GET で切り替えると、他人の共有 URL を踏ませるだけでその人の一覧に書き込ませられる（ADR 0004）。
+  // 作り直された旧 URL で別の空の一覧に入らないよう、見つからなければエラーにする
+  .get("/s/:spaceId", async (c) => {
+    const shared = await peekSharedSpace(c, c.req.param("spaceId"));
+    if (shared === undefined) return render(c, "共有URLが使えません", <InvalidShareUrl />, 404);
+    if (shared.opened) {
+      saveSpaceCookie(c, shared.id);
+      return c.redirect("/");
+    }
+    return render(
+      c,
+      "共有された一覧",
+      <OpenSharedSpace action={`/s/${shared.id}`} switching={shared.switching} />,
+    );
+  })
+  .post("/s/:spaceId", async (c) =>
     (await openSharedSpace(c, c.req.param("spaceId")))
-      ? c.redirect("/")
+      ? c.redirect("/", 303)
       : render(c, "共有URLが使えません", <InvalidShareUrl />, 404),
   )
   .get("/app.js", etag(), (c) => script(c, appScript))
@@ -133,8 +163,9 @@ export const pages = new Hono<{ Bindings: Env }>()
         400,
       );
     }
-    await insertItem(c.env.DB, c.var.spaceId, parsed.data);
-    return c.redirect("/", 303);
+    if (await insertItem(c.env.DB, c.var.spaceId, parsed.data)) return c.redirect("/", 303);
+    const message = `1つの一覧に登録できる商品は${MAX_ITEMS}件までです。使い終わった商品を削除してください。`;
+    return render(c, "登録できません", <LimitReached message={message} back="/" />, 409);
   })
   .get("/items/:id/edit", findSpace, async (c) => {
     const spaceId = c.var.spaceId;
@@ -159,13 +190,16 @@ export const pages = new Hono<{ Bindings: Env }>()
       />,
     );
   })
-  .post("/items/:id", resolveSpace, async (c) => {
+  // 編集・削除は既存のスペースにしかできないので発行しない
+  .post("/items/:id", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    if (spaceId === undefined) return render(c, "見つかりません", <NotFound />, 404);
     const values = await formValues(c);
     const parsed = itemInput.safeParse(values);
     const action = `/items/${c.req.param("id")}`;
     if (!parsed.success) {
       const errors = invalidFields(parsed.error.issues);
-      const tags = await listTags(c.env.DB, c.var.spaceId);
+      const tags = await listTags(c.env.DB, spaceId);
       return render(
         c,
         "編集",
@@ -173,12 +207,13 @@ export const pages = new Hono<{ Bindings: Env }>()
         400,
       );
     }
-    const item = await updateItem(c.env.DB, c.var.spaceId, c.req.param("id"), parsed.data);
+    const item = await updateItem(c.env.DB, spaceId, c.req.param("id"), parsed.data);
     return item ? c.redirect("/", 303) : render(c, "見つかりません", <NotFound />, 404);
   })
   // 別の端末で先に削除されていても結果は同じなので、常に一覧へ戻す
-  .post("/items/:id/delete", resolveSpace, async (c) => {
-    await deleteItem(c.env.DB, c.var.spaceId, c.req.param("id"));
+  .post("/items/:id/delete", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    if (spaceId !== undefined) await deleteItem(c.env.DB, spaceId, c.req.param("id"));
     return c.redirect("/", 303);
   })
   .get("/tags", findSpace, async (c) => {
@@ -193,12 +228,14 @@ export const pages = new Hono<{ Bindings: Env }>()
       const tags = await listTags(c.env.DB, c.var.spaceId);
       return render(c, "タグ", <TagSettings tags={tags} name={name} invalid />, 400);
     }
-    await insertTag(c.env.DB, c.var.spaceId, parsed.data.name);
-    return c.redirect("/tags", 303);
+    if (await insertTag(c.env.DB, c.var.spaceId, parsed.data.name)) return c.redirect("/tags", 303);
+    const message = `タグは${MAX_TAGS}個までです。使っていないタグを削除してください。`;
+    return render(c, "登録できません", <LimitReached message={message} back="/tags" />, 409);
   })
   // 別の端末で先に削除されていても結果は同じなので、常にタグ画面へ戻す
-  .post("/tags/:id/delete", resolveSpace, async (c) => {
-    await deleteTag(c.env.DB, c.var.spaceId, c.req.param("id"));
+  .post("/tags/:id/delete", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    if (spaceId !== undefined) await deleteTag(c.env.DB, spaceId, c.req.param("id"));
     return c.redirect("/tags", 303);
   })
   // warn_days の読み込みでスペースの確認を兼ねる（findSpace を通さない）

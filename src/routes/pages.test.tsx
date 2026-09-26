@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv, withRotatedAway } from "../test-env";
+import { createTestEnv, fillSpace, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -137,11 +137,40 @@ describe("一覧", () => {
   });
 });
 
+describe("スペースが無い端末の編集・削除", () => {
+  it.each([
+    ["/items/x", milk, 404],
+    ["/items/x/delete", {}, 303],
+    ["/tags/x/delete", {}, 303],
+  ])("%s はスペースを発行しない", async (path, form, status) => {
+    const res = await post(path, form);
+    expect(res.status).toBe(status);
+    expect(spaceCookie(res)).toBeUndefined();
+  });
+});
+
 describe("追加", () => {
+  it("500 件に達していれば 409 で案内する", async () => {
+    const spaceId = await newSpaceWith();
+    await fillSpace(env, "items", spaceId, 499);
+    const res = await post("/items", milk, spaceId);
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain("登録できる商品は500件までです");
+  });
+
   it("フォームを表示する（種別の初期値は賞味期限）", async () => {
     const html = await (await app.request("/items/new")).text();
     expect(html).toContain('action="/items"');
     expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
+  it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
+    const spaceId = await newSpaceWith({ ...milk, name: "𩸽".repeat(100), memo: "𩸽".repeat(500) });
+    expect(await itemIds(spaceId)).toHaveLength(1);
+  });
+
+  it("本文が 16KB を超えたら 413", async () => {
+    expect((await post("/items", { ...milk, memo: "a".repeat(16 * 1024) })).status).toBe(413);
   });
 
   it("写真の読み取りは JS が表示するまで隠し、同一オリジンのスクリプトだけを許可する", async () => {
@@ -341,6 +370,16 @@ const addTag = async (spaceId: string, name: string): Promise<string> => {
 };
 
 describe("タグ", () => {
+  it("100 個に達していれば 409 で案内する", async () => {
+    const spaceId = await newSpaceWith();
+    await fillSpace(env, "tags", spaceId, 100);
+    const res = await post("/tags", { name: "もう1つ" }, spaceId);
+    expect(res.status).toBe(409);
+    const html = await res.text();
+    expect(html).toContain("タグは100個までです");
+    expect(html).toContain('<a href="/tags">戻る</a>');
+  });
+
   it("Cookie が無ければ空のタグ画面を出し、スペースは発行しない", async () => {
     const res = await app.request("/tags");
     expect(res.headers.get("set-cookie")).toBeNull();
@@ -480,6 +519,84 @@ describe("設定", () => {
 });
 
 describe("共有 URL", () => {
+  it("開いただけでは Cookie を変えず、確認画面の POST で切り替えて一覧へ戻る", async () => {
+    const shared = await newSpaceWith();
+    const confirm = await get(`/s/${shared}`);
+    expect(confirm.status).toBe(200);
+    expect(confirm.headers.get("set-cookie")).toBeNull();
+    const html = await confirm.text();
+    expect(html).toContain(`<form class="actions" method="post" action="/s/${shared}">`);
+    expect(html).not.toContain('class="notice"');
+
+    const res = await post(`/s/${shared}`, {});
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    expect(spaceCookie(res)).toBe(shared);
+    expect(await itemIds(shared)).toHaveLength(1);
+  });
+
+  it("この端末で別の一覧を使っていれば、切り替わることを警告する", async () => {
+    const shared = await newSpaceWith();
+    const mine = await newSpaceWith();
+    const res = await get(`/s/${shared}`, mine);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(await res.text()).toContain('<p class="notice" role="alert">');
+  });
+
+  it("今の Cookie のスペースが無くなっていれば警告しない", async () => {
+    const shared = await newSpaceWith();
+    const res = await get(`/s/${shared}`, crypto.randomUUID());
+    expect(await res.text()).not.toContain('class="notice"');
+  });
+
+  it("すでにその一覧を使っていれば確認せずに一覧へ戻る", async () => {
+    const shared = await newSpaceWith();
+    const res = await get(`/s/${shared}`, shared);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/");
+    expect(spaceCookie(res)).toBe(shared);
+  });
+
+  it("別のサイトからの POST では切り替えない", async () => {
+    const shared = await newSpaceWith();
+    const res = await app.request(
+      `/s/${shared}`,
+      {
+        method: "POST",
+        body: new URLSearchParams(),
+        headers: { origin: "https://evil.example", cookie: `space_id=${await newSpaceWith()}` },
+      },
+      env,
+    );
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it.each([crypto.randomUUID(), "not-a-uuid"])(
+    "存在しない共有 URL（%s）は 404 で、Cookie を変えない",
+    async (bogus) => {
+      for (const res of [await get(`/s/${bogus}`), await post(`/s/${bogus}`, {})]) {
+        expect(res.status).toBe(404);
+        expect(res.headers.get("set-cookie")).toBeNull();
+        expect(await res.text()).toContain("共有URLが使えません");
+      }
+    },
+  );
+
+  it("space_id や商品を含む応答はキャッシュさせない", async () => {
+    const spaceId = await newSpaceWith();
+    const responses = await Promise.all([
+      get("/", spaceId),
+      get("/settings", spaceId),
+      get(`/s/${spaceId}`),
+      post(`/s/${spaceId}`, {}),
+      get("/s/00000000-0000-4000-8000-000000000000"),
+      get("/api/items", spaceId),
+      post("/items", milk, spaceId),
+    ]);
+    for (const res of responses) expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("Cookie が無ければ共有 URL を出さない", async () => {
     const html = await (await get("/settings")).text();
     expect(html).toContain("商品を登録すると共有URLが表示されます");

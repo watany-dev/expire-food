@@ -15,41 +15,57 @@ import {
   setWarnDays,
   updateItem,
 } from "../platform/db";
-import { type AppEnv, findSpace } from "../space";
+import { findSpace, resolveSpace } from "../space";
 
 const notFound = { error: "not_found" } as const;
 
-export const api = new Hono<AppEnv>()
-  .get("/items", async (c) => {
+// 発行するのは追加と設定の書き込みだけ（ADR 0002 の追記）。閲覧は空の一覧・既定値を返し、編集・削除は 404。
+// 不正な本文でスペースを作らないよう、検証してから発行する
+export const api = new Hono<{ Bindings: Env }>()
+  .get("/items", findSpace, async (c) => {
     const today = todayJst();
-    const items = await listItems(c.env.DB, c.var.spaceId);
+    const spaceId = c.var.spaceId;
+    const items = spaceId === undefined ? [] : await listItems(c.env.DB, spaceId);
     return c.json(items.map((item) => ({ ...item, days_left: daysUntil(item.expires_on, today) })));
   })
-  .post("/items", zValidator("json", itemInput), async (c) =>
-    c.json(await insertItem(c.env.DB, c.var.spaceId, c.req.valid("json")), 201),
-  )
-  .patch("/items/:id", zValidator("json", itemPatch), async (c) => {
-    const item = await updateItem(c.env.DB, c.var.spaceId, c.req.param("id"), c.req.valid("json"));
+  .post("/items", zValidator("json", itemInput), resolveSpace, async (c) => {
+    const item = await insertItem(c.env.DB, c.var.spaceId, c.req.valid("json"));
+    return item ? c.json(item, 201) : c.json({ error: "too_many_items" }, 409);
+  })
+  .patch("/items/:id", zValidator("json", itemPatch), findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    const item =
+      spaceId === undefined
+        ? null
+        : await updateItem(c.env.DB, spaceId, c.req.param("id"), c.req.valid("json"));
     return item ? c.json(item) : c.json(notFound, 404);
   })
-  .delete("/items/:id", async (c) =>
-    (await deleteItem(c.env.DB, c.var.spaceId, c.req.param("id")))
+  .delete("/items/:id", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    return spaceId !== undefined && (await deleteItem(c.env.DB, spaceId, c.req.param("id")))
       ? c.body(null, 204)
-      : c.json(notFound, 404),
-  )
-  .get("/tags", async (c) => c.json(await listTags(c.env.DB, c.var.spaceId)))
-  .post("/tags", zValidator("json", tagInput), async (c) =>
-    c.json(await insertTag(c.env.DB, c.var.spaceId, c.req.valid("json").name), 201),
-  )
-  .delete("/tags/:id", async (c) =>
-    (await deleteTag(c.env.DB, c.var.spaceId, c.req.param("id")))
+      : c.json(notFound, 404);
+  })
+  .get("/tags", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    return c.json(spaceId === undefined ? [] : await listTags(c.env.DB, spaceId));
+  })
+  .post("/tags", zValidator("json", tagInput), resolveSpace, async (c) => {
+    const tag = await insertTag(c.env.DB, c.var.spaceId, c.req.valid("json").name);
+    return tag ? c.json(tag, 201) : c.json({ error: "too_many_tags" }, 409);
+  })
+  .delete("/tags/:id", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    return spaceId !== undefined && (await deleteTag(c.env.DB, spaceId, c.req.param("id")))
       ? c.body(null, 204)
-      : c.json(notFound, 404),
-  )
-  .get("/space", async (c) =>
-    c.json({ warn_days: (await getWarnDays(c.env.DB, c.var.spaceId)) ?? DEFAULT_WARN_DAYS }),
-  )
-  .patch("/space", zValidator("json", spacePatch), async (c) => {
+      : c.json(notFound, 404);
+  })
+  .get("/space", findSpace, async (c) => {
+    const spaceId = c.var.spaceId;
+    const warnDays = spaceId === undefined ? null : await getWarnDays(c.env.DB, spaceId);
+    return c.json({ warn_days: warnDays ?? DEFAULT_WARN_DAYS });
+  })
+  .patch("/space", zValidator("json", spacePatch), resolveSpace, async (c) => {
     const { warn_days } = c.req.valid("json");
     await setWarnDays(c.env.DB, c.var.spaceId, warn_days);
     return c.json({ warn_days });

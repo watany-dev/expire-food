@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv, withRemovedAfterCheck, withRotatedAway } from "../test-env";
+import { createTestEnv, fillSpace, withRemovedAfterCheck, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -24,7 +24,19 @@ const spaceCookie = (res: Response): string => {
   return match[1];
 };
 
-const newSpace = async (): Promise<string> => spaceCookie(await app.request("/api/space", {}, env));
+// 閲覧ではスペースを発行しないので、書き込みで発行する
+const newSpace = async (): Promise<string> =>
+  spaceCookie(
+    await app.request(
+      "/api/space",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ warn_days: 3 }),
+        headers: { "content-type": "application/json" },
+      },
+      env,
+    ),
+  );
 
 const call = (spaceId: string, path: string, init: RequestInit = {}) =>
   app.request(
@@ -45,10 +57,17 @@ const postItem = async (spaceId: string, body: object = milk) => {
 };
 
 describe("スペース解決", () => {
-  it("Cookie が無ければスペースを発行し、堅牢な Cookie を 1 年で設定する", async () => {
-    const res = await app.request("/api/space", {}, env);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ warn_days: 3 });
+  it("Cookie が無ければ書き込みでスペースを発行し、堅牢な Cookie を 1 年で設定する", async () => {
+    const res = await app.request(
+      "/api/items",
+      {
+        method: "POST",
+        body: JSON.stringify(milk),
+        headers: { "content-type": "application/json" },
+      },
+      env,
+    );
+    expect(res.status).toBe(201);
     const cookie = res.headers.get("set-cookie") ?? "";
     expect(cookie).toMatch(/^space_id=[0-9a-f-]{36};/);
     expect(cookie).toContain("Max-Age=31536000");
@@ -66,31 +85,74 @@ describe("スペース解決", () => {
   it.each(["not-a-uuid", "00000000-0000-4000-8000-000000000000"])(
     "未知・不正な Cookie（%s）は採用せず新しいスペースを発行する",
     async (bogus) => {
-      const id = spaceCookie(await call(bogus, "/api/space"));
+      const id = spaceCookie(
+        await call(bogus, "/api/space", {
+          method: "PATCH",
+          body: JSON.stringify({ warn_days: 3 }),
+        }),
+      );
       expect(id).not.toBe(bogus);
       expect(spaceCookie(await call(id, "/api/space"))).toBe(id);
     },
   );
 
-  it("共有 URL を開くと Cookie がその ID に切り替わり、トップへ戻る", async () => {
-    const shared = await newSpace();
-    await postItem(shared);
-    const res = await call(await newSpace(), `/s/${shared}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
-    expect(spaceCookie(res)).toBe(shared);
-    expect(await (await call(shared, "/api/items")).json()).toHaveLength(1);
+  it.each([
+    ["/api/items", []],
+    ["/api/tags", []],
+    ["/api/space", { warn_days: 3 }],
+  ])("閲覧（GET %s）ではスペースを発行せず、空の一覧・既定値を返す", async (path, body) => {
+    for (const res of [await app.request(path, {}, env), await call(crypto.randomUUID(), path)]) {
+      expect(res.status).toBe(200);
+      expect(res.headers.get("set-cookie")).toBeNull();
+      expect(await res.json()).toEqual(body);
+    }
   });
 
-  it.each([crypto.randomUUID(), "not-a-uuid"])(
-    "存在しない共有 URL（%s）は 404 で、Cookie を変えない",
-    async (bogus) => {
-      const res = await call(await newSpace(), `/s/${bogus}`);
-      expect(res.status).toBe(404);
-      expect(res.headers.get("set-cookie")).toBeNull();
-      expect(await res.text()).toContain("共有URLが使えません");
-    },
-  );
+  it.each([
+    ["PATCH", "/api/items/x", { name: "卵" }, 404],
+    ["DELETE", "/api/items/x", undefined, 404],
+    ["DELETE", "/api/tags/x", undefined, 404],
+    ["POST", "/api/items", {}, 400],
+  ])("スペースが無ければ %s %s は発行せずに %i で断る", async (method, path, body, status) => {
+    const res = await app.request(
+      path,
+      { method, body: JSON.stringify(body), headers: { "content-type": "application/json" } },
+      env,
+    );
+    expect(res.status).toBe(status);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("発行は接続元（IPv6 は /64）ごとに数え、超えたら 429 でスペースを作らない", async () => {
+    const limiter = { limit: vi.fn(async () => ({ success: false })) };
+    const limited = { ...env, SPACE_RATE_LIMITER: limiter };
+    const res = await app.request(
+      "/api/items",
+      {
+        method: "POST",
+        body: JSON.stringify(milk),
+        headers: { "content-type": "application/json", "cf-connecting-ip": "2001:db8:1:2::5" },
+      },
+      limited,
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(limiter.limit).toHaveBeenCalledWith({ key: "ip:2001:db8:1:2::/64" });
+
+    // 既存のスペースへの書き込みは数えない
+    const id = await newSpace();
+    const own = await app.request(
+      "/api/items",
+      {
+        method: "POST",
+        body: JSON.stringify(milk),
+        headers: { "content-type": "application/json", cookie: `space_id=${id}` },
+      },
+      limited,
+    );
+    expect(own.status).toBe(201);
+    expect(limiter.limit).toHaveBeenCalledOnce();
+  });
 
   it("/healthz と / ではスペースを発行しない", async () => {
     for (const path of ["/healthz", "/"]) {
@@ -101,6 +163,24 @@ describe("スペース解決", () => {
 });
 
 describe("/api/items", () => {
+  it("1 つのスペースに 500 件まで。超えたら 409", async () => {
+    const id = await newSpace();
+    await fillSpace(env, "items", id, 499);
+    await postItem(id);
+    const res = await call(id, "/api/items", { method: "POST", body: JSON.stringify(milk) });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "too_many_items" });
+    // 別のスペースには影響しない
+    await postItem(await newSpace());
+  });
+
+  it("本文が 16KB を超えたら 413 で登録しない", async () => {
+    const id = await newSpace();
+    const body = JSON.stringify({ ...milk, memo: "a".repeat(16 * 1024) });
+    expect((await call(id, "/api/items", { method: "POST", body })).status).toBe(413);
+    expect(await (await call(id, "/api/items")).json()).toEqual([]);
+  });
+
   it("登録した商品を期限日の昇順で残り日数（JST）付きで返す", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // JST では 2026-10-05 になった直後
@@ -248,6 +328,19 @@ const postTag = async (spaceId: string, name: string) => {
 };
 
 describe("/api/tags", () => {
+  it("1 つのスペースに 100 個まで。上限でも既にある名前は返す", async () => {
+    const id = await newSpace();
+    await fillSpace(env, "tags", id, 99);
+    const last = await postTag(id, "最後");
+    const res = await call(id, "/api/tags", {
+      method: "POST",
+      body: JSON.stringify({ name: "もう1つ" }),
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "too_many_tags" });
+    expect(await postTag(id, "最後")).toEqual(last);
+  });
+
   it("作った順に返し、同じ名前は増やさない", async () => {
     const id = await newSpace();
     const food = await postTag(id, " 食事 ");
@@ -328,7 +421,7 @@ describe("/api/space/rotate", () => {
 
     expect((await call(space_id, `/s/${old}`)).status).toBe(404);
     const stale = await call(old, "/api/items");
-    expect(spaceCookie(stale)).not.toBe(old);
+    expect(stale.headers.get("set-cookie")).toBeNull();
     expect(await stale.json()).toEqual([]);
   });
 
@@ -511,6 +604,15 @@ describe("/api/extract", () => {
   ])("%s は 400 で AI を呼ばない", async (_, image, part) => {
     const run = aiRun();
     expect((await extract(image, { run, part })).status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("本文が画像の上限を大きく超えたら、検証の前に 413 で止める（レート制限では数える）", async () => {
+    const run = aiRun();
+    const limiter = { limit: vi.fn(async () => ({ success: true })) };
+    const res = await extract(jpeg(2 * 1024 * 1024 + 32 * 1024), { run, limiter });
+    expect(res.status).toBe(413);
+    expect(limiter.limit).toHaveBeenCalledOnce();
     expect(run).not.toHaveBeenCalled();
   });
 

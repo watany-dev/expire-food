@@ -88,6 +88,7 @@
   - URL で開いた場合は Cookie をその ID に更新（機種変更・家族共有）
 - [x] リポジトリ層（`src/platform/db.ts`）: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
 - [x] API（`src/routes/api.ts`）: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
+- [x] スペースの発行と件数の上限（#21、[ADR 0002](./adr/0002-server-rendered-forms.md) の追記）: `GET` の API では発行しない、発行は接続元（IPv6 は /64）ごとに 1 分 5 回（`SPACE_RATE_LIMITER`）、1 スペースの商品は 500 件・タグは 100 個まで
 - [x] JST の「今日」を返すユーティリティ（`src/domain/date.ts`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
 - [x] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
   - API の結合テストは `src/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
@@ -102,6 +103,7 @@
 - [x] 削除（`popover` の確認ダイアログ → 承認時のみ削除）
 - [x] 設定: `warn_days` の変更
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）
+- [x] リクエスト本文の上限（`bodyLimit`）: フォームと JSON API は 16KB、`/api/extract` は画像の上限 + 16KB。超えたら `413`（#23）
 - [x] ステータス判定（expired / warn / normal）を純粋関数にしてテーブル駆動テスト（`src/domain/status.ts`）
 - [x] 閲覧系の画面ではスペースを発行せず、書き込み時に発行する（ADR 0001 の `/` の扱いを更新）
 - [x] 一覧を 1 行に詰め、期限切れ / N日以内 / それ以降に区切って遠いものを畳む。削除ボタンは左スワイプで出す（[ADR 0009](./adr/0009-compact-list.md)）
@@ -139,6 +141,7 @@
 - [x] `POST /api/space/rotate`（画面は `POST /settings/rotate`）: 新 ID を発行して items を付け替え、旧 ID を削除する処理を D1 の `batch()` で一括実行。実行した端末の Cookie を新 ID に更新
 - [x] 旧 URL / 旧 Cookie の扱い: 旧 URL（D1 に無い `/s/:spaceId`）は 404 で案内し Cookie を変えない。旧 Cookie の端末は一覧に「新しい共有URLを開いてください」と出す（書き込めば新しいスペースになる）
 - [x] PWA: `public/` の `manifest.webmanifest`、アイコン（192 / 512 / maskable / `apple-touch-icon`）、`display: standalone`、最小限の Service Worker（`sw.js`。オフライン時に `offline.html` を出すだけで、データはキャッシュしない）
+- [x] 共有 URL は開くだけでは切り替えず、確認画面の `POST` で Cookie を書き換える。別の一覧を使っている端末では警告する（#20、ADR 0004 の追記）
 - [ ] iOS Safari / Android Chrome のホーム画面追加を実機で確認 — 本番デプロイ（Phase 5）後に手作業
 
 ## Phase 5: 本番化と運用
@@ -150,7 +153,8 @@
   - リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` が無い間は実行しない（本番 D1 の作成が手作業のため）
 - [x] デプロイの前提（D1・デプロイ用トークン・`production` Environment・secret・`CLOUDFLARE_ACCOUNT_ID`）を Terraform（`infra/`、state はローカル）で作る。CI の `checkov` ジョブで静的検査。[ADR 0008](./adr/0008-terraform-infra.md)
 - [x] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）。`e2e/`、CI の `e2e` ジョブ
-- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。確認は本番デプロイ後に手作業
+- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。呼び出しログは切ったので、件数・エラー率は Workers の Metrics で見る（ADR 0012）。確認は本番デプロイ後に手作業
+- [x] `space_id` をログとキャッシュに残さない: 呼び出しログを切り、応答は既定で `Cache-Control: no-store`（#24、[ADR 0012](./adr/0012-space-id-exposure.md)）
 - [x] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める — 自前のビーコン（`/app.js` → `POST /api/vitals` → Workers Logs）。[ADR 0006](./adr/0006-real-user-web-vitals.md)
 - [x] 無料枠の消費を確認する手段 — `bun run usage`（`scripts/usage.ts`）が GraphQL Analytics API から Workers のリクエスト数・Workers AI の Neurons・D1 の読み書き行数を直近 7 日分出し、8 割超えで終了コード 1。集計と判定は `src/domain/usage.ts`
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）— 本番デプロイ後に `bun run usage` で手作業
@@ -178,6 +182,7 @@
 | AI の読み取り精度                      | 期限の誤登録                         | 必ず確認フォームを経由。原文をコードで検証し、決めきれない候補は判定モデルかユーザーが選ぶ     |
 | URL が鍵                               | URL 流出で第三者が閲覧可能           | 共有 URL の再生成機能（Phase 4）、`Referrer-Policy: no-referrer`                               |
 | Workers AI の無料枠                    | 上限超過で抽出不可                   | レート制限、クライアントでの縮小、失敗時は手入力へ                                             |
+| devDependencies の脆弱性               | Scorecard の Vulnerabilities         | `overrides` で修正版へ。修正版の無い `extract-zip` は `@puppeteer/browsers` 3 系で外す         |
 
 ## 対象外（要件 9 の再掲）
 
