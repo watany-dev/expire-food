@@ -199,6 +199,17 @@ describe("追加", () => {
     expect(await res.text()).toContain(body);
   });
 
+  it("/app.js と /extract.js はトップレベルの名前が重ならない（同じページで読むと SyntaxError になる）", async () => {
+    const names = async (path: string) =>
+      new Set(
+        [...(await (await app.request(path)).text()).matchAll(/^(?:const|let|var) (\w+)/gm)].map(
+          (m) => m[1],
+        ),
+      );
+    const extract = await names("/extract.js");
+    expect([...(await names("/app.js"))].filter((name) => extract.has(name))).toEqual([]);
+  });
+
   it.each(["/app.js", "/extract.js"])(
     "%s が変わっていなければ 304 で本文を送らない",
     async (path) => {
@@ -603,11 +614,12 @@ describe("共有 URL", () => {
     expect(html).not.toContain('id="share-url"');
   });
 
-  it("自分のスペースの共有 URL を出し、コピーボタンは JS が表示するまで隠す", async () => {
+  it("自分のスペースの共有 URL を出し、コピー・送るボタンは JS が表示するまで隠す", async () => {
     const spaceId = await newSpaceWith();
     const html = await (await get("/settings", spaceId)).text();
     expect(html).toContain(`<input id="share-url" readonly="" value="${ORIGIN}/s/${spaceId}"/>`);
     expect(html).toContain('<button id="share-copy" type="button" hidden="">');
+    expect(html).toContain('<button id="share-send" type="button" hidden="">');
     expect(html).toContain('<button class="secondary" type="button" popovertarget="rotate">');
     expect(html).toContain('<form class="actions" method="post" action="/settings/rotate">');
   });

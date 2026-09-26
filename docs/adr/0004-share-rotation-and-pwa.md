@@ -9,7 +9,7 @@ Phase 4 で、設定画面に共有 URL を出してコピーできるように�
 
 ## 決定
 
-- 共有 URL（`/s/{space_id}`）は設定画面に読み取り専用の入力欄で出す。スペースが無い（まだ登録していない）端末では出さない。コピーは Clipboard API で、使えるときだけ `/app.js` がボタンを表示する。使えなければ長押しでコピーする
+- 共有 URL（`/s/{space_id}`）は設定画面に読み取り専用の入力欄で出す。スペースが無い（まだ登録していない）端末では出さない。コピーは Clipboard API で、使えるときだけ `/app.js` がボタンを表示する。使えなければ長押しでコピーする。Web Share API（`navigator.share`）が使えるときは同じく `/app.js` が「送る」ボタンを表示し、共有シートで URL を渡す（#43）
 - 作り直しは `POST /api/space/rotate` と、画面用の `POST /settings/rotate`（`popover` の確認ダイアログから送る）
   - 新しい ID のスペースを `warn_days`・`created_at` ごと作り、items を付け替え、旧 ID を消すまでを D1 の `batch()`（1 トランザクション）で行う
   - スペースは発行しない（`findSpace`）。旧 Cookie の端末が作り直すと、空の新しいスペースを作ってそれを作り直し、案内なしに別の一覧へ移ってしまうため。スペースが無い・別の端末が先に作り直して旧 ID が無いときは何も変えない（API は `404`、画面は一覧へ戻して下の案内を出す）。~~`/api/space/rotate` は `/api/*` の `resolveSpace` より先に登録する~~（[ADR 0002](./0002-server-rendered-forms.md) の追記で不要になった）
