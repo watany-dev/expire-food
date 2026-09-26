@@ -26,27 +26,27 @@
 
 ## ガードレール（Phase 0 で整備済み）
 
-| 仕組み                                                                         | 何を守るか                                                                               | 実行タイミング                                   |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `vp check`                                                                     | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック                                 | pre-commit（`vp staged`）・CI                    |
-| `vp test`                                                                      | ユニット / 結合テスト                                                                    | CI                                               |
-| `vp build`                                                                     | Worker がバンドルできること                                                              | CI                                               |
-| Playwright（`e2e/`）                                                           | スマホ viewport での主要導線（Phase 5 で追加）                                           | CI                                               |
-| `wrangler types --check`                                                       | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ                                   | CI                                               |
-| `wrangler d1 migrations apply --local`                                         | マイグレーションが素の DB に適用できること                                               | CI                                               |
-| knip                                                                           | 未使用のファイル / export / 依存                                                         | CI                                               |
-| Semgrep（`p/typescript`, `p/secrets`）                                         | 一般的な脆弱パターン・秘密情報の混入                                                     | CI                                               |
-| Semgrep 独自ルール（`.semgrep/`）                                              | 本アプリ固有の約束事（下表）                                                             | CI（ルール自体も `semgrep --test` で検証）       |
-| `vp test --coverage`（v8）                                                     | 全体 100%（branches 95%）、`src/domain/` はファイル単位で 100%。`src/platform/` は対象外 | CI                                               |
-| Worker バンドルサイズ                                                          | gzip 後 3 MiB（無料プラン上限）未満、2/3 超で警告                                        | CI                                               |
-| Lighthouse CI（`lighthouserc.json`）                                           | モバイルで Performance / Accessibility 90 以上、LCP ≤ 2.5s、CLS ≤ 0.1、TBT ≤ 200ms       | CI                                               |
-| zghalint                                                                       | ワークフロー自体のセキュリティ・ベストプラクティス                                       | CI                                               |
-| CodeQL（`security-extended`）                                                  | TypeScript と Actions の脆弱パターン                                                     | CI・週次                                         |
-| OpenSSF Scorecard                                                              | リポジトリ全体のサプライチェーン衛生（目標 7.0 以上）                                    | main への push・週次                             |
-| 依存の待機期間（Dependabot `cooldown` / `bunfig.toml` の `minimumReleaseAge`） | 公開から 7 日未満のバージョンを入れない                                                  | 常時                                             |
-| Rulesets（`.github/rulesets/main.json`）                                       | 必須チェック・承認 1 名・push で承認を外す                                               | 常時（取り込みは `docs/repository-settings.md`） |
-| Dependabot                                                                     | Bun 依存と GitHub Actions の更新                                                         | 週次                                             |
-| Actions の SHA 固定 + `permissions: contents: read`                            | サプライチェーン・トークン権限の最小化                                                   | 常時                                             |
+| 仕組み                                                                         | 何を守るか                                                                               | 実行タイミング                             |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `vp check`                                                                     | Oxfmt 整形 / Oxlint（type-aware）/ TypeScript 型チェック                                 | pre-commit（`vp staged`）・CI              |
+| `vp test`                                                                      | ユニット / 結合テスト                                                                    | CI                                         |
+| `vp build`                                                                     | Worker がバンドルできること                                                              | CI                                         |
+| Playwright（`e2e/`）                                                           | スマホ viewport での主要導線（Phase 5 で追加）                                           | CI                                         |
+| `wrangler types --check`                                                       | `wrangler.jsonc` と `worker-configuration.d.ts` のズレ                                   | CI                                         |
+| `wrangler d1 migrations apply --local`                                         | マイグレーションが素の DB に適用できること                                               | CI                                         |
+| knip                                                                           | 未使用のファイル / export / 依存                                                         | CI                                         |
+| Semgrep（`p/typescript`, `p/secrets`）                                         | 一般的な脆弱パターン・秘密情報の混入                                                     | CI                                         |
+| Semgrep 独自ルール（`.semgrep/`）                                              | 本アプリ固有の約束事（下表）                                                             | CI（ルール自体も `semgrep --test` で検証） |
+| `vp test --coverage`（v8）                                                     | 全体 100%（branches 95%）、`src/domain/` はファイル単位で 100%。`src/platform/` は対象外 | CI                                         |
+| Worker バンドルサイズ                                                          | gzip 後 3 MiB（無料プラン上限）未満、2/3 超で警告                                        | CI                                         |
+| Lighthouse CI（`lighthouserc.json`）                                           | モバイルで Performance / Accessibility 90 以上、LCP ≤ 2.5s、CLS ≤ 0.1、TBT ≤ 200ms       | CI                                         |
+| zghalint                                                                       | ワークフロー自体のセキュリティ・ベストプラクティス                                       | CI                                         |
+| CodeQL（`security-extended`）                                                  | TypeScript と Actions の脆弱パターン                                                     | CI・週次                                   |
+| OpenSSF Scorecard                                                              | リポジトリ全体のサプライチェーン衛生（目標 7.0 以上）                                    | main への push・週次                       |
+| 依存の待機期間（Dependabot `cooldown` / `bunfig.toml` の `minimumReleaseAge`） | 公開から 7 日未満のバージョンを入れない                                                  | 常時                                       |
+| Rulesets（`infra/github.tf`）                                                  | 必須チェック・承認 1 名・push で承認を外す                                               | 常時（apply は手元から）                   |
+| Dependabot                                                                     | Bun 依存と GitHub Actions の更新                                                         | 週次                                       |
+| Actions の SHA 固定 + `permissions: contents: read`                            | サプライチェーン・トークン権限の最小化                                                   | 常時                                       |
 
 独自 Semgrep ルール:
 

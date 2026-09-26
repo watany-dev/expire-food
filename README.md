@@ -44,7 +44,7 @@ Workers AI はローカルでもリモート実行のため、`/api/extract` を
 
 ### 初回（Terraform）
 
-本番 D1、デプロイ用トークン、GitHub の `production` Environment・secret・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` は `infra/` の Terraform で作る（[ADR 0008](docs/adr/0008-terraform-infra.md)）。state はローカルにだけ置く。
+本番 D1、デプロイ用トークン、GitHub の `production` Environment・secret・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID`・main の Ruleset は `infra/` の Terraform で作る（[ADR 0008](docs/adr/0008-terraform-infra.md)）。state はローカルにだけ置く。
 
 1. Cloudflare でカスタムトークンを作る。対象アカウントに限定し、権限は Account / Account API Tokens: Edit と Account / D1: Edit。Terraform を動かすときだけ使う
 2. apply する
