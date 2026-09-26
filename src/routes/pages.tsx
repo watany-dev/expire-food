@@ -63,7 +63,12 @@ export const pages = new Hono<{ Bindings: Env }>()
       return render(
         c,
         "期限メモ",
-        <ItemList items={[]} warnDays={DEFAULT_WARN_DAYS} lostSpace={c.var.lostSpace} />,
+        <ItemList
+          items={[]}
+          warnDays={DEFAULT_WARN_DAYS}
+          today={todayJst()}
+          lostSpace={c.var.lostSpace}
+        />,
       );
     }
     const today = todayJst();
@@ -72,7 +77,11 @@ export const pages = new Hono<{ Bindings: Env }>()
       getWarnDays(c.env.DB, spaceId),
     ]);
     const listed = items.map((item) => ({ ...item, days_left: daysUntil(item.expires_on, today) }));
-    return render(c, "期限メモ", <ItemList items={listed} warnDays={warnDays} lostSpace={false} />);
+    return render(
+      c,
+      "期限メモ",
+      <ItemList items={listed} warnDays={warnDays} today={today} lostSpace={false} />,
+    );
   })
   // 共有 URL。スペースを Cookie に保存して一覧へ戻す（機種変更・家族共有）。
   // 作り直された旧 URL で別の空の一覧に入らないよう、見つからなければエラーにする（ADR 0004）

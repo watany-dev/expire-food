@@ -12,14 +12,20 @@ a{color:#0b57d0}
 .button,button{display:inline-block;min-height:44px;padding:.6rem 1rem;border:1px solid #0b57d0;border-radius:.5rem;background:#0b57d0;color:#fff;font:inherit;text-decoration:none;cursor:pointer}
 .secondary{background:#fff;color:#0b57d0}
 .danger{background:#b3261e;border-color:#b3261e;color:#fff}
-.items{list-style:none;margin:1rem 0;padding:0}
-.item{display:grid;grid-template-columns:1fr auto;gap:.25rem 1rem;align-items:center;padding:.75rem;border-bottom:1px solid #ddd;border-left:.5rem solid transparent}
-.item .name{font-weight:bold;font-size:1.1rem}
-.item .meta{grid-column:1;font-size:.9rem}
-.item .days{grid-column:1;font-weight:bold}
-.item .delete{grid-column:2;grid-row:1/span 3}
+header nav{display:flex;align-items:center;gap:1rem}
+.group{display:flex;justify-content:space-between;font-size:.85rem;margin:1rem 0 0;padding:.25rem .75rem;background:#f1f3f4;color:#444}
+.items{list-style:none;margin:0;padding:0}
+.item{border-bottom:1px solid #ddd;border-left:.4rem solid transparent}
+.swipe{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.swipe::-webkit-scrollbar{display:none}
+.row{flex:0 0 100%;display:flex;align-items:center;gap:.5rem;min-height:44px;padding:0 .75rem;color:inherit;text-decoration:none;scroll-snap-align:start}
+.row .name{flex:1;min-width:0;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{font-size:.8rem;color:#555}
+.row .days{min-width:4.5em;font-weight:bold;text-align:right}
+.item .delete{flex:0 0 5rem;border-radius:0;scroll-snap-align:end}
+details summary{min-height:44px;padding:.6rem .75rem;color:#0b57d0;font-weight:bold;cursor:pointer;border-bottom:1px solid #ddd}
+details[open] summary{display:none}
 .expired{color:#b3261e;border-left-color:#b3261e}
-.expired .name{color:#b3261e}
 .warn{background:#fff4c2;border-left-color:#e0a800}
 [popover]{max-width:calc(100% - 2rem);padding:1rem;border:1px solid #888;border-radius:.5rem;color:#1a1a1a}
 [popover]::backdrop{background:rgb(0 0 0/.4)}

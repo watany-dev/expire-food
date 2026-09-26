@@ -95,7 +95,29 @@ describe("一覧", () => {
       ["warn", "卵", "あと2日"],
       ["normal", "パン", "あと3日"],
     ]);
-    expect(html).toContain("消費期限 2026-10-04");
+    expect(html).toContain("消費 10/4");
+    expect(
+      [...html.matchAll(/<h2 class="group"><span>([^<]+)<\/span><span>([^<]+)</g)].map((m) =>
+        m.slice(1),
+      ),
+    ).toEqual([
+      ["期限切れ", "1件"],
+      ["14日以内", "2件"],
+    ]);
+  });
+
+  it("期限の遠い商品は先頭の 2 件だけ出し、残りは details に畳む", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T15:00:00Z"));
+    const spaceId = await newSpaceWith({ ...milk, name: "缶詰", expires_on: "2027-01-01" });
+    for (const name of ["乾麺", "米"]) {
+      await post("/items", { ...milk, name, expires_on: "2026-12-01" }, spaceId);
+    }
+    const html = await (await get("/", spaceId)).text();
+    expect(html).toContain("<span>それ以降</span><span>3件</span>");
+    expect(html).toContain("<summary>残り 1 件を表示</summary>");
+    expect(html.slice(html.indexOf("<details>"))).toContain("缶詰");
+    expect(html).toContain("27/1/1");
   });
 
   it("warn_days の設定で期限間近の範囲が変わる", async () => {
