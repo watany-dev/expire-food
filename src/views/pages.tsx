@@ -221,6 +221,21 @@ export const ItemForm = (props: {
             value={values.expires_on}
             {...invalid("expires_on")}
           />
+          {/* /app.js が表示し、JST の今日を基準に入れる。JS が無ければピッカーだけ */}
+          <span id="date-chips" class="chips" role="group" aria-label="今日から数えて入れる" hidden>
+            {(
+              [
+                ["今日", "0"],
+                ["+3日", "3"],
+                ["+1週", "7"],
+                ["+1か月", "1m"],
+              ] as const
+            ).map(([label, offset]) => (
+              <button class="secondary" type="button" data-offset={offset}>
+                {label}
+              </button>
+            ))}
+          </span>
           <FieldError field="expires_on" errors={errors} />
         </p>
         <fieldset {...invalid("kind")}>

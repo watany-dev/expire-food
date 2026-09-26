@@ -28,6 +28,31 @@ if (shareSend && navigator.share) {
   shareSend.hidden = false;
 }
 
+// 期限日のチップ。日付は JST で数える（要件 4.2）
+const dateChips = document.getElementById("date-chips");
+if (dateChips) {
+  const expiresOn = document.getElementById("expires_on");
+  dateChips.addEventListener("click", (event) => {
+    const offset = event.target.closest("button")?.dataset.offset;
+    if (!offset) return;
+    // JST の今日の 0 時を UTC の Date として持ち、getUTC* / setUTC* だけで数える
+    const date = new Date(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    if (offset.endsWith("m")) {
+      const day = date.getUTCDate();
+      date.setUTCMonth(date.getUTCMonth() + Number.parseInt(offset), 1);
+      // 1/31 の 1 か月後は 2 月末にする（3 月にはみ出さない）
+      const last = new Date(
+        Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+      ).getUTCDate();
+      date.setUTCDate(Math.min(day, last));
+    } else {
+      date.setUTCDate(date.getUTCDate() + Number(offset));
+    }
+    expiresOn.value = date.toISOString().slice(0, 10);
+  });
+  dateChips.hidden = false;
+}
+
 // 実ユーザーの Core Web Vitals を、画面を離れるときに 1 回だけ送る（ADR 0006）
 const vitals = { path: location.pathname };
 const observe = (type, onEntry, options) => {
