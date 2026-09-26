@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b57d0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b57d0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)" />
     <title>オフライン - 期限メモ</title>
     <style>
       body {
@@ -16,6 +18,13 @@
           sans-serif;
         line-height: 1.5;
         color: #1a1a1a;
+        background: #fff;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          color: #e3e3e3;
+          background: #131314;
+        }
       }
     </style>
   </head>

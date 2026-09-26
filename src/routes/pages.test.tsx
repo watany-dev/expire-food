@@ -84,6 +84,15 @@ describe("一覧", () => {
     expect(html).not.toMatch(/&(gt|lt|quot|#39|amp);/);
   });
 
+  it("端末の設定に合わせてライト・ダークを切り替える", async () => {
+    const html = await (await app.request("/")).text();
+    expect(html).toContain('<meta name="color-scheme" content="light dark"/>');
+    expect(html).toContain(
+      '<meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)"/>',
+    );
+    expect(html).toContain("@media (prefers-color-scheme:dark){:root{");
+  });
+
   it("期限日の昇順に、消費期限切れ・賞味期限切れ・期限間近・通常を色分けして表示する", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // JST 2026-10-05 00:00
