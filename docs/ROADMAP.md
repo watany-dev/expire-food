@@ -102,6 +102,7 @@
 - [x] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証（`src/routes/pages.tsx`）
 - [x] 追加フォームの「保存して次を追加」: 直前のタグと種別をクエリで引き継いで `/items/new` へ戻る（#34。JS なし）
 - [x] 削除（`popover` の確認ダイアログ → 承認時のみ削除）
+- [x] 保存・削除の結果を知らせる: 保存後は `/#item-<id>` へ戻して `:target` で行を強調、削除後は `/?deleted=<商品名>` で「◯◯を削除しました」（#36。JS なし）
 - [x] 設定: `warn_days` の変更
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）
 - [x] リクエスト本文の上限（`bodyLimit`）: フォームと JSON API は 16KB、`/api/extract` は画像の上限 + 16KB。超えたら `413`（#23）

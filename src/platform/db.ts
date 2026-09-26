@@ -175,9 +175,18 @@ export const updateItem = (
     )
     .first<Item>();
 
-export const deleteItem = async (db: D1Database, spaceId: string, id: string): Promise<boolean> =>
-  (await db.prepare("DELETE FROM items WHERE id = ? AND space_id = ?").bind(id, spaceId).run()).meta
-    .changes > 0;
+// 画面の「◯◯を削除しました」に使うので、消した商品名を返す
+export const deleteItem = async (
+  db: D1Database,
+  spaceId: string,
+  id: string,
+): Promise<string | null> =>
+  (
+    await db
+      .prepare("DELETE FROM items WHERE id = ? AND space_id = ? RETURNING name")
+      .bind(id, spaceId)
+      .first<{ name: string }>()
+  )?.name ?? null;
 
 export const getItem = (db: D1Database, spaceId: string, id: string): Promise<Item | null> =>
   db
