@@ -44,7 +44,7 @@
 | CodeQL（`security-extended`）                                                  | TypeScript と Actions の脆弱パターン                                                     | CI・週次                                   |
 | OpenSSF Scorecard                                                              | リポジトリ全体のサプライチェーン衛生（目標 7.0 以上）                                    | main への push・週次                       |
 | 依存の待機期間（Dependabot `cooldown` / `bunfig.toml` の `minimumReleaseAge`） | 公開から 7 日未満のバージョンを入れない                                                  | 常時                                       |
-| Rulesets（`infra/github.tf`）                                                  | 必須チェック・承認 1 名・push で承認を外す                                               | 常時（apply は手元から）                   |
+| Rulesets（`infra/github.tf`）                                                  | 必須チェック・承認 0 名（個人開発のため）・PR 必須                                       | 常時（apply は手元から）                   |
 | Dependabot                                                                     | Bun 依存と GitHub Actions の更新                                                         | 週次                                       |
 | Actions の SHA 固定 + `permissions: contents: read`                            | サプライチェーン・トークン権限の最小化                                                   | 常時                                       |
 
