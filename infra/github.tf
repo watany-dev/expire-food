@@ -49,19 +49,13 @@ resource "github_repository_ruleset" "main" {
     }
   }
 
-  # 個人開発では自分の PR を自分で承認できないため、Admin は PR 経由に限りバイパスできる。2 人目のレビュアーが入ったら外す
-  bypass_actors {
-    actor_id    = 5 # Admin ロール
-    actor_type  = "RepositoryRole"
-    bypass_mode = "pull_request"
-  }
-
   rules {
     deletion         = true
     non_fast_forward = true
 
     pull_request {
-      required_approving_review_count   = 1
+      # 自分の PR は自分で承認できないため 0。マージできるのは write 権限を持つ人だけなので、collaborator を足すときに 1 へ戻す
+      required_approving_review_count   = 0
       dismiss_stale_reviews_on_push     = true
       require_code_owner_review         = false
       require_last_push_approval        = false

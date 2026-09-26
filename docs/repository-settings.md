@@ -7,12 +7,16 @@
 `infra/github.tf` の `github_repository_ruleset.main` で管理する（手順は README「初回（Terraform）」）。
 
 - 対象: デフォルトブランチ（`main`）
-- PR 必須、承認 1 名、**承認後に push されたら承認を外す**（`dismiss_stale_reviews_on_push`）、レビューコメントの解決必須
+- PR 必須、承認 0 名、**承認後に push されたら承認を外す**（`dismiss_stale_reviews_on_push`）、レビューコメントの解決必須
 - 必須チェック: CI の各ジョブと CodeQL。ジョブ名を変えたら `required_check` も揃えて apply する
 - force push とブランチ削除を禁止
-- Admin ロールは **PR 経由に限り**バイパス可。個人開発では自分の PR を自分で承認できないため。2 人目のレビュアーが入ったら `bypass_actors` を消す（Scorecard の Branch-Protection も上がる）
+- 承認を 0 にしているのは、個人開発では自分の PR を自分で承認できず、毎回 Admin バイパスが要って GitHub Mobile からマージしにくいため。公開リポジトリでも、マージできるのは write 権限を持つ collaborator（現状は自分だけ）に限られる。collaborator を足すときは承認を 1 に戻す（Scorecard の Branch-Protection も上がる）
 
 UI で先に作った Ruleset が残っている場合は、apply の前に `terraform -chdir=infra import github_repository_ruleset.main expire-food:<ruleset ID>` で取り込む（ID は Settings → Rules → Rulesets で開いた URL の末尾）。名前が同じ Ruleset は作れないため。
+
+## 自動マージ（Settings → General → Pull Requests）
+
+- **Allow auto-merge**: 有効。PR 作成時に `gh pr merge --auto --squash` を付けると、必須チェックが通った時点でマージされる。`--auto` を付けられるのも write 権限を持つ人だけ
 
 ## Code security（Settings → Code security）
 
