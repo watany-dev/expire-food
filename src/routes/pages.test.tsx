@@ -60,7 +60,17 @@ describe("一覧", () => {
     const res = await app.request("/");
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
-    expect(await res.text()).toContain("まだ登録がありません");
+    const html = await res.text();
+    expect(html).toContain("まだ登録がありません");
+    // 初めて開いた人に、撮る → 確認 → 保存の流れと追加・共有への導線を示す
+    expect(html).toContain('<section class="welcome">');
+    expect(html).toContain('<a class="button" href="/items/new">＋ 最初の商品を追加</a>');
+    expect(html).toContain('<a href="/settings">設定</a>の共有URLを家族に送ると');
+  });
+
+  it("1 件でも登録があれば使い方の案内は出さない", async () => {
+    const spaceId = await newSpaceWith();
+    expect(await (await get("/", spaceId)).text()).not.toContain('class="welcome"');
   });
 
   it("スタイルは nonce 付きで CSP に許可され、エスケープされずに埋め込まれる", async () => {
@@ -536,9 +546,10 @@ describe("タグ", () => {
   it("商品の無いタグ・消えたタグで開いたとき", async () => {
     const spaceId = await newSpaceWith();
     const empty = await addTag(spaceId, "菓子");
-    expect(await (await get(`/?tag=${empty}`, spaceId)).text()).toContain(
-      "「菓子」の商品はありません。",
-    );
+    const filtered = await (await get(`/?tag=${empty}`, spaceId)).text();
+    expect(filtered).toContain("「菓子」の商品はありません。");
+    // 絞り込み中の空表示は案内を出さない
+    expect(filtered).not.toContain('class="welcome"');
     const html = await (await get(`/?tag=${crypto.randomUUID()}`, spaceId)).text();
     expect(html).toContain("<h1>期限メモ</h1>");
     expect(html).toContain('class="name">牛乳<');

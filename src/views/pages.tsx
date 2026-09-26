@@ -118,7 +118,11 @@ export const ItemList = (props: {
         </p>
       )}
       {props.items.length === 0 ? (
-        <p>{props.tag ? `「${props.tag.name}」の商品はありません。` : "まだ登録がありません。"}</p>
+        props.tag ? (
+          <p>「{props.tag.name}」の商品はありません。</p>
+        ) : (
+          <Welcome />
+        )
       ) : (
         groupByDeadline(props.items, props.warnDays).map((group) => {
           const shown = group.key === "later" ? group.items.slice(0, LATER_VISIBLE) : group.items;
@@ -143,6 +147,25 @@ export const ItemList = (props: {
     </>
   );
 };
+
+// 初めて開いたときに、次に何をすればよいかを示す
+const Welcome = () => (
+  <section class="welcome">
+    <p>まだ登録がありません。</p>
+    <ol>
+      <li>商品の期限の印字を撮る</li>
+      <li>読み取った商品名と期限を確かめる</li>
+      <li>保存すると、期限の近い順に並ぶ</li>
+    </ol>
+    <a class="button" href="/items/new">
+      ＋ 最初の商品を追加
+    </a>
+    <p>
+      <a href="/settings">設定</a>
+      の共有URLを家族に送ると、同じ一覧を一緒に使えます。
+    </p>
+  </section>
+);
 
 type ItemFormValues = Partial<Record<"name" | "expires_on" | "kind" | "memo" | "tag_id", string>>;
 export type ItemField = keyof ItemFormValues;
