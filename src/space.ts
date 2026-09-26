@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 
+import { clientKey } from "./domain/client-key";
 import { spaceId as spaceIdSchema } from "./domain/schema";
 import { createSpace, spaceExists } from "./platform/db";
 
@@ -63,10 +64,18 @@ export const openSharedSpace = async (c: Context<{ Bindings: Env }>, candidate: 
   return id !== undefined;
 };
 
-/** Cookie のスペースを解決し、見つからなければ新しく発行する（API と書き込み系の画面） */
+/** Cookie のスペースを解決し、見つからなければ新しく発行する（書き込み系の API と画面） */
 export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
   let id = await knownSpace(c, getCookie(c, SPACE_COOKIE));
   if (id === undefined) {
+    // 発行は D1 に 1 行書くので接続元ごとに数え、書き込みの枠を使い切られないようにする
+    const key = clientKey(c.req.header("cf-connecting-ip"));
+    if (!(await c.env.SPACE_RATE_LIMITER.limit({ key })).success) {
+      return c.text(
+        "新しい一覧を作る回数が多すぎます。少し待ってからもう一度お試しください。",
+        429,
+      );
+    }
     id = crypto.randomUUID();
     await createSpace(c.env.DB, id);
   }
@@ -76,7 +85,7 @@ export const resolveSpace = createMiddleware<AppEnv>(async (c, next) => {
   saveSpaceCookie(c, c.var.spaceId);
 });
 
-/** Cookie のスペースを解決するが発行はしない（閲覧系の画面）。見つからなければ `spaceId` は undefined */
+/** Cookie のスペースを解決するが発行はしない（閲覧系の API と画面）。見つからなければ `spaceId` は undefined */
 export const findSpace = createMiddleware<PageEnv>(async (c, next) => {
   c.set("spaceId", await knownSpace(c, getCookie(c, SPACE_COOKIE)));
   await next();

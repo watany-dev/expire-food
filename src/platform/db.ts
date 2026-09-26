@@ -1,4 +1,11 @@
-import type { Item, ItemInput, ItemPatch, Tag } from "../domain/schema";
+import {
+  type Item,
+  type ItemInput,
+  type ItemPatch,
+  MAX_ITEMS,
+  MAX_TAGS,
+  type Tag,
+} from "../domain/schema";
 
 // items / tags のクエリは必ず space_id を条件に含める（他スペースのデータに触れない）
 
@@ -79,16 +86,19 @@ export const getList = async (
     : null;
 };
 
-// 同じ名前のタグがあればそれを返す（二重送信で増やさない）
-export const insertTag = async (db: D1Database, spaceId: string, name: string): Promise<Tag> =>
-  (await db
+// 同じ名前のタグがあればそれを返す（二重送信で増やさない）。上限に達していれば null
+export const insertTag = (db: D1Database, spaceId: string, name: string): Promise<Tag | null> =>
+  db
     .prepare(
-      `INSERT INTO tags (id, space_id, name, created_at) VALUES (?, ?, ?, ?)
+      `INSERT INTO tags (id, space_id, name, created_at)
+      SELECT ?1, ?2, ?3, ?4
+      WHERE (SELECT COUNT(*) FROM tags WHERE space_id = ?2) < ?5
+        OR EXISTS (SELECT 1 FROM tags WHERE space_id = ?2 AND name = ?3)
       ON CONFLICT (space_id, name) DO UPDATE SET name = excluded.name
       RETURNING id, name`,
     )
-    .bind(crypto.randomUUID(), spaceId, name, new Date().toISOString())
-    .first<Tag>()) as Tag;
+    .bind(crypto.randomUUID(), spaceId, name, new Date().toISOString(), MAX_TAGS)
+    .first<Tag>();
 
 // 付いていた商品は ON DELETE SET NULL でタグなしに戻る
 export const deleteTag = async (db: D1Database, spaceId: string, id: string): Promise<boolean> =>
@@ -104,17 +114,19 @@ export const listItemNames = async (db: D1Database, spaceId: string): Promise<st
       .all<{ name: string }>()
   ).results.map((row) => row.name);
 
+// 上限に達していれば null
 export const insertItem = async (
   db: D1Database,
   spaceId: string,
   input: ItemInput,
-): Promise<Item> => {
+): Promise<Item | null> => {
   const item: Item = { id: crypto.randomUUID(), ...input, created_at: new Date().toISOString() };
   // 他スペースのタグ ID は NULL にする
-  const tagId = await db
+  const row = await db
     .prepare(
       `INSERT INTO items (id, space_id, name, expires_on, kind, memo, tag_id, created_at)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT id FROM tags WHERE id = ?7 AND space_id = ?2), ?8)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, (SELECT id FROM tags WHERE id = ?7 AND space_id = ?2), ?8
+      WHERE (SELECT COUNT(*) FROM items WHERE space_id = ?2) < ?9
       RETURNING tag_id`,
     )
     .bind(
@@ -126,9 +138,10 @@ export const insertItem = async (
       item.memo,
       item.tag_id,
       item.created_at,
+      MAX_ITEMS,
     )
-    .first<string | null>("tag_id");
-  return { ...item, tag_id: tagId };
+    .first<{ tag_id: string | null }>();
+  return row && { ...item, tag_id: row.tag_id };
 };
 
 // 送られた項目だけを 1 文で書き換える（共有中の別端末の同時編集を上書きしない）。memo / tag_id は null で消せるので送られたかを別に渡す

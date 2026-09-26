@@ -27,4 +27,4 @@ Phase 3 で、撮影した写真から商品名・期限日・種別を読み取
 
 - `src/client/extract.js` は Node の `vp test` では動かず、カバレッジの対象外。ロジックは縮小・送信・フォームへの反映だけにし、判定は `/api/extract`（`src/domain/`）に寄せる
 - 事前に作った複数のスペースの Cookie を使い回せばレート制限の枠は増やせる。無料プランの Workers AI は 1 日の上限で止まる（課金は増えない）ので、読み取りが使えなくなるだけとして許容する
-- `/api/extract` は `/api/*` の `resolveSpace` より先に登録する（`src/index.tsx`）
+- ~~`/api/extract` は `/api/*` の `resolveSpace` より先に登録する（`src/index.tsx`）~~ → [ADR 0002](./0002-server-rendered-forms.md) の追記で `/api/*` 全体の `resolveSpace` をやめたので不要

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import app from "../index";
-import { createTestEnv, withRotatedAway } from "../test-env";
+import { createTestEnv, fillSpace, withRotatedAway } from "../test-env";
 
 let env: Env;
 let dispose: () => Promise<void>;
@@ -137,7 +137,27 @@ describe("一覧", () => {
   });
 });
 
+describe("スペースが無い端末の編集・削除", () => {
+  it.each([
+    ["/items/x", milk, 404],
+    ["/items/x/delete", {}, 303],
+    ["/tags/x/delete", {}, 303],
+  ])("%s はスペースを発行しない", async (path, form, status) => {
+    const res = await post(path, form);
+    expect(res.status).toBe(status);
+    expect(spaceCookie(res)).toBeUndefined();
+  });
+});
+
 describe("追加", () => {
+  it("500 件に達していれば 409 で案内する", async () => {
+    const spaceId = await newSpaceWith();
+    await fillSpace(env, "items", spaceId, 499);
+    const res = await post("/items", milk, spaceId);
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain("登録できる商品は500件までです");
+  });
+
   it("フォームを表示する（種別の初期値は賞味期限）", async () => {
     const html = await (await app.request("/items/new")).text();
     expect(html).toContain('action="/items"');
@@ -350,6 +370,16 @@ const addTag = async (spaceId: string, name: string): Promise<string> => {
 };
 
 describe("タグ", () => {
+  it("100 個に達していれば 409 で案内する", async () => {
+    const spaceId = await newSpaceWith();
+    await fillSpace(env, "tags", spaceId, 100);
+    const res = await post("/tags", { name: "もう1つ" }, spaceId);
+    expect(res.status).toBe(409);
+    const html = await res.text();
+    expect(html).toContain("タグは100個までです");
+    expect(html).toContain('<a href="/tags">戻る</a>');
+  });
+
   it("Cookie が無ければ空のタグ画面を出し、スペースは発行しない", async () => {
     const res = await app.request("/tags");
     expect(res.headers.get("set-cookie")).toBeNull();
