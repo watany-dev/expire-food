@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import type { ItemInput } from "./schema";
 
@@ -64,19 +64,25 @@ export type Reading = {
 };
 
 // 型の合わない項目は「読めなかった」に倒す
-const readingOutput = z
-  .object({
-    names: z.array(z.string().catch("")).catch([]),
-    dates: z
-      .array(
-        z
-          .object({ text: z.string().catch(""), label: z.string().nullable().catch(null) })
-          .catch({ text: "", label: null }),
-      )
-      .catch([]),
-    issue: z.enum(ISSUES).nullable().catch(null),
-  })
-  .catch({ names: [], dates: [], issue: null });
+const readingOutput = z.catch(
+  z.object({
+    names: z.catch(z.array(z.catch(z.string(), "")), []),
+    dates: z.catch(
+      z.array(
+        z.catch(
+          z.object({
+            text: z.catch(z.string(), ""),
+            label: z.catch(z.nullable(z.string()), null),
+          }),
+          { text: "", label: null },
+        ),
+      ),
+      [],
+    ),
+    issue: z.catch(z.nullable(z.enum(ISSUES)), null),
+  }),
+  { names: [], dates: [], issue: null },
+);
 
 // Chat Completions 形式（choices[0].message.content）と旧形式（response）の両方を受ける
 const chatOutput = z.object({

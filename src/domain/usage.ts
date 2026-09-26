@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 // 無料プランの 1 日あたりの上限。どれもアカウント全体で数え、UTC 0 時にリセットされる
 export const FREE_TIER = {
@@ -52,7 +52,7 @@ export const usageWindow = (accountTag: string, now: Date) => {
   };
 };
 
-const groups = <T extends z.ZodRawShape>(sum: T) =>
+const groups = <T extends z.core.$ZodShape>(sum: T) =>
   z.array(z.object({ dimensions: z.object({ date: z.string() }), sum: z.object(sum) }));
 
 const response = z.object({
@@ -69,7 +69,9 @@ const response = z.object({
   }),
 });
 
-const graphqlErrors = z.object({ errors: z.array(z.object({ message: z.string() })).min(1) });
+const graphqlErrors = z.object({
+  errors: z.array(z.object({ message: z.string() })).check(z.minLength(1)),
+});
 
 export const parseUsage = (body: unknown, dates: string[]): DailyUsage[] => {
   const parsed = response.safeParse(body);

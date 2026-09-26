@@ -1,14 +1,14 @@
-import { z } from "zod";
+import { z } from "zod/mini";
 
 import type { Extraction } from "./extract";
 import { itemInput } from "./schema";
 
 export const evalCases = z.record(
   z.string(),
-  itemInput.pick({ name: true, expires_on: true, kind: true }),
+  z.pick(itemInput, { name: true, expires_on: true, kind: true }),
 );
 
-type EvalCase = z.infer<typeof evalCases>[string];
+type EvalCase = z.output<typeof evalCases>[string];
 type Actual = Pick<Extraction, "name" | "expires_on" | "kind" | "confidence">;
 
 export type EvalResult = { file: string; expected: EvalCase } & (
@@ -18,7 +18,9 @@ export type EvalResult = { file: string; expected: EvalCase } & (
 
 // エラー時も result: null が付いてくる
 const runResponse = z.object({ result: z.custom<unknown>((v) => v != null) });
-const runErrors = z.object({ errors: z.array(z.object({ message: z.string() })).min(1) });
+const runErrors = z.object({
+  errors: z.array(z.object({ message: z.string() })).check(z.minLength(1)),
+});
 
 export const parseRunResponse = (body: unknown): unknown => {
   const parsed = runResponse.safeParse(body);
