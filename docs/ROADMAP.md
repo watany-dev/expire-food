@@ -80,7 +80,7 @@
 
 ゴール: 画面なしで、curl から商品の登録・一覧・更新・削除とスペース設定ができる。
 
-- [ ] 本番 D1 を作成し `database_id` を反映（`wrangler d1 create expire-food`）— Cloudflare の認証が要るため手作業。Phase 5 のデプロイまでに行う
+- [ ] 本番 D1 を作成し `database_id` を反映 — `infra/` の Terraform で作る（[ADR 0008](./adr/0008-terraform-infra.md)）。apply は Cloudflare の認証が要るため手元で行い、output を `wrangler.jsonc` に書く
 - [x] Zod スキーマ（`src/domain/schema.ts`）: `name`（必須・上限 100 文字）/ `expires_on`（実在する `YYYY-MM-DD`）/ `kind`（`best_by` | `use_by`）/ `memo`（任意・上限 500 文字）/ `warn_days`（1〜30）
 - [x] スペース解決ミドルウェア（`src/space.ts`、決定は [ADR 0001](./adr/0001-space-resolution.md)）
   - URL `/s/:spaceId` → Cookie の順で解決し、D1 に存在するものだけ採用
@@ -146,6 +146,7 @@
 - [x] デプロイ用ワークフロー: main への push で `vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`
   - `CLOUDFLARE_API_TOKEN` は GitHub Environments（`production`、Required reviewers 付き）に置き、トークン権限は Workers / D1 / Workers AI の編集に限定（手順は `docs/repository-settings.md`）
   - リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` が無い間は実行しない（本番 D1 の作成が手作業のため）
+- [x] デプロイの前提（D1・デプロイ用トークン・`production` Environment・secret・`CLOUDFLARE_ACCOUNT_ID`）を Terraform（`infra/`、state はローカル）で作る。CI の `checkov` ジョブで静的検査。[ADR 0008](./adr/0008-terraform-infra.md)
 - [x] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）。`e2e/`、CI の `e2e` ジョブ
 - [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。確認は本番デプロイ後に手作業
 - [x] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める — 自前のビーコン（`/app.js` → `POST /api/vitals` → Workers Logs）。[ADR 0006](./adr/0006-real-user-web-vitals.md)

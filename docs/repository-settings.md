@@ -8,7 +8,7 @@
 
 - 対象: デフォルトブランチ（`main`）
 - PR 必須、承認 1 名、**承認後に push されたら承認を外す**（`dismiss_stale_reviews_on_push`）、レビューコメントの解決必須
-- 必須チェック: `check / test / build`、`knip`、`semgrep (SAST)`、`e2e`、`lighthouse`、`zghalint`、`analyze (javascript-typescript)`、`analyze (actions)`
+- 必須チェック: `check / test / build`、`knip`、`semgrep (SAST)`、`checkov (Terraform)`、`e2e`、`lighthouse`、`zghalint`、`analyze (javascript-typescript)`、`analyze (actions)`
 - force push とブランチ削除を禁止
 - Admin ロールは **PR 経由に限り**バイパス可（`bypass_mode: pull_request`）。個人開発では自分の PR を自分で承認できないため。2 人目のレビュアーが入ったら `bypass_actors` を空にする（Scorecard の Branch-Protection も上がる）
 
@@ -29,16 +29,8 @@
 
 ## デプロイ（Phase 5）
 
-- Settings → Environments に `production` を作る
-  - **Required reviewers**: 自分（将来は 2 人目）
-  - **Deployment branches**: `main` のみ
-  - Secret `CLOUDFLARE_API_TOKEN` は Environment 側に置く（リポジトリ secret にしない）
-- Settings → Secrets and variables → Actions → **Variables** にリポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` を置く
-  - `deploy.yml` はこの変数が無い間ジョブを実行しない（本番 D1 を作るまで main への push を赤くしないため）。ジョブの `if` からは Environment の変数を読めないのでリポジトリ変数にする。アカウント ID は秘密情報ではない
-- Cloudflare の API トークンはカスタムトークンで、対象アカウントに限定し次の権限だけ付ける
-  - Account / Workers Scripts: Edit
-  - Account / D1: Edit
-  - Account / Workers AI: Edit（Read で足りるならそちら）
+`production` Environment・`CLOUDFLARE_API_TOKEN`・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID`・デプロイ用トークンは `infra/` の Terraform で作る（手順は README「初回（Terraform）」、決定は [ADR 0005](./adr/0005-deploy-and-e2e.md) と [ADR 0008](./adr/0008-terraform-infra.md)）。
+
 - 無料枠の確認（`bun run usage`）には、これとは別に Account / Account Analytics: Read だけのトークンを手元で使う（GitHub には置かない）
 - SLSA provenance（署名付きビルド来歴）は配布物のある CLI 向けのため入れない
 

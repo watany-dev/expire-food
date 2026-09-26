@@ -156,3 +156,8 @@ semgrep.sarif
 # Playwright
 test-results/
 playwright-report/
+
+# Terraform（state はローカルだけに置く。ADR 0008）
+.terraform/
+*.tfstate
+*.tfstate.*

@@ -52,6 +52,10 @@
             "integration_id": 15368
           },
           {
+            "context": "checkov (Terraform)",
+            "integration_id": 15368
+          },
+          {
             "context": "lighthouse (mobile, perf / a11y / Core Web Vitals)",
             "integration_id": 15368
           },

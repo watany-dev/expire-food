@@ -36,21 +36,30 @@ Workers AI はローカルでもリモート実行のため、`/api/extract` を
 
 ## CI で見ていること
 
-`.github/workflows/` を参照。`vp check` / `vp test --coverage`（閾値付き）/ `vp build` とバンドルサイズ / `wrangler types --check` / D1 マイグレーション適用 / knip / Semgrep（独自ルールのテスト込み）/ Playwright E2E / Lighthouse CI / zghalint / CodeQL / OpenSSF Scorecard。GitHub の UI で行う設定は [docs/repository-settings.md](docs/repository-settings.md)。
+`.github/workflows/` を参照。`vp check` / `vp test --coverage`（閾値付き）/ `vp build` とバンドルサイズ / `wrangler types --check` / D1 マイグレーション適用 / knip / Semgrep（独自ルールのテスト込み）/ Checkov（`infra/` の Terraform）/ Playwright E2E / Lighthouse CI / zghalint / CodeQL / OpenSSF Scorecard。GitHub の UI で行う設定は [docs/repository-settings.md](docs/repository-settings.md)。
 
 ## 運用
 
 デプロイは main への push で `.github/workflows/deploy.yml` が行う（`vp build` → `wrangler d1 migrations apply --remote` → `wrangler deploy`）。`production` Environment の承認待ちになるので、GitHub の Actions 画面で承認する。構成は [ADR 0005](docs/adr/0005-deploy-and-e2e.md)。
 
-### 初回（D1 の作成）
+### 初回（Terraform）
 
-```bash
-bunx wrangler login
-bunx wrangler d1 create expire-food   # 出力された database_id を wrangler.jsonc に反映してコミット
-bun run db:migrate:remote             # 初回だけ手元から適用してもよい（以後はデプロイで自動）
-```
+本番 D1、デプロイ用トークン、GitHub の `production` Environment・secret・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` は `infra/` の Terraform で作る（[ADR 0008](docs/adr/0008-terraform-infra.md)）。state はローカルにだけ置く。
 
-続けて [docs/repository-settings.md](docs/repository-settings.md) の「デプロイ」のとおり、`production` Environment・`CLOUDFLARE_API_TOKEN`・リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` を設定する。`CLOUDFLARE_ACCOUNT_ID` が無い間はデプロイのジョブは実行されない。
+1. Cloudflare でカスタムトークンを作る。対象アカウントに限定し、権限は Account / Account API Tokens: Edit と Account / D1: Edit。Terraform を動かすときだけ使う
+2. apply する
+
+   ```bash
+   export CLOUDFLARE_API_TOKEN=...            # 1 のトークン
+   export GITHUB_TOKEN=$(gh auth token)       # リポジトリの admin 権限が要る
+   export TF_VAR_cloudflare_account_id=...
+   terraform -chdir=infra init
+   terraform -chdir=infra apply
+   ```
+
+3. `terraform -chdir=infra output -raw d1_database_id` の値を `wrangler.jsonc` の `database_id` に書いて PR を出す。マージするとデプロイが承認待ちになり、マイグレーションもそこで適用される
+
+apply で `CLOUDFLARE_ACCOUNT_ID` が作られた時点から、main への push はデプロイになる。3 より先に別の PR をマージすると、ダミーの `database_id` のままデプロイされて失敗するので、承認画面で却下する。デプロイ用トークンを作り直すときは `terraform -chdir=infra apply -replace=cloudflare_account_token.deploy` を実行する。
 
 ### マイグレーション
 
