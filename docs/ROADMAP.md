@@ -80,7 +80,7 @@
 
 ゴール: 画面なしで、curl から商品の登録・一覧・更新・削除とスペース設定ができる。
 
-- [ ] 本番 D1 を作成し `database_id` を反映 — `infra/` の Terraform で作る（[ADR 0008](./adr/0008-terraform-infra.md)）。apply は Cloudflare の認証が要るため手元で行い、output を `wrangler.jsonc` に書く
+- [x] 本番 D1 を作成し `database_id` を反映 — `infra/` の Terraform で作る（[ADR 0008](./adr/0008-terraform-infra.md)）。apply は Cloudflare の認証が要るため手元で行い、output を `wrangler.jsonc` に書く
 - [x] Zod スキーマ（`src/domain/schema.ts`）: `name`（必須・上限 100 文字）/ `expires_on`（実在する `YYYY-MM-DD`）/ `kind`（`best_by` | `use_by`）/ `memo`（任意・上限 500 文字）/ `warn_days`（1〜30）
 - [x] スペース解決ミドルウェア（`src/space.ts`、決定は [ADR 0001](./adr/0001-space-resolution.md)）
   - URL `/s/:spaceId` → Cookie の順で解決し、D1 に存在するものだけ採用
