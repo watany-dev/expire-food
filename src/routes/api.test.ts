@@ -101,6 +101,13 @@ describe("スペース解決", () => {
 });
 
 describe("/api/items", () => {
+  it("本文が 16KB を超えたら 413 で登録しない", async () => {
+    const id = await newSpace();
+    const body = JSON.stringify({ ...milk, memo: "a".repeat(16 * 1024) });
+    expect((await call(id, "/api/items", { method: "POST", body })).status).toBe(413);
+    expect(await (await call(id, "/api/items")).json()).toEqual([]);
+  });
+
   it("登録した商品を期限日の昇順で残り日数（JST）付きで返す", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // JST では 2026-10-05 になった直後
@@ -510,6 +517,15 @@ describe("/api/extract", () => {
   ])("%s は 400 で AI を呼ばない", async (_, image, part) => {
     const run = aiRun();
     expect((await extract(image, { run, part })).status).toBe(400);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("本文が画像の上限を大きく超えたら、検証の前に 413 で止める（レート制限では数える）", async () => {
+    const run = aiRun();
+    const limiter = { limit: vi.fn(async () => ({ success: true })) };
+    const res = await extract(jpeg(2 * 1024 * 1024 + 32 * 1024), { run, limiter });
+    expect(res.status).toBe(413);
+    expect(limiter.limit).toHaveBeenCalledOnce();
     expect(run).not.toHaveBeenCalled();
   });
 

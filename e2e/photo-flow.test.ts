@@ -67,3 +67,12 @@ test("写真の問題で読めなければ撮り直しを促す", async ({ page 
   await expect(page.getByLabel("商品名")).toHaveValue("牛乳");
   await expect(page.locator("#crop")).toBeHidden();
 });
+
+test("本文の上限（413）で断られたら手入力を促す", async ({ page }) => {
+  await page.route("/api/extract", (route) => route.fulfill({ status: 413 }));
+  await page.goto("/items/new");
+  await page.getByLabel("写真から読み取る").setInputFiles(photo);
+
+  await expect(page.getByRole("status")).toHaveText("読み取れませんでした。手入力してください。");
+  await expect(page.getByLabel("商品名")).toBeEditable();
+});
