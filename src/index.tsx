@@ -29,6 +29,12 @@ app.use(
 );
 // フォーム送信（urlencoded / multipart / text/plain）は同一オリジンからだけ受け付ける
 app.use(csrf());
+// 画面と API は商品や共有 URL（space_id）を含むので、端末（bfcache を含む）や中継のキャッシュに残さない。
+// キャッシュさせてよい応答（/app.js・/extract.js）は自分で Cache-Control を付ける
+app.use(async (c, next) => {
+  await next();
+  if (!c.res.headers.has("cache-control")) c.res.headers.set("cache-control", "no-store");
+});
 
 app.get("/healthz", (c) => c.json({ ok: true }));
 

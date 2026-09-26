@@ -480,6 +480,19 @@ describe("設定", () => {
 });
 
 describe("共有 URL", () => {
+  it("space_id や商品を含む応答はキャッシュさせない", async () => {
+    const spaceId = await newSpaceWith();
+    const responses = await Promise.all([
+      get("/", spaceId),
+      get("/settings", spaceId),
+      get(`/s/${spaceId}`),
+      get("/s/00000000-0000-4000-8000-000000000000"),
+      get("/api/items", spaceId),
+      post("/items", milk, spaceId),
+    ]);
+    for (const res of responses) expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("Cookie が無ければ共有 URL を出さない", async () => {
     const html = await (await get("/settings")).text();
     expect(html).toContain("商品を登録すると共有URLが表示されます");
