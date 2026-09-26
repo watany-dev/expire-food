@@ -139,15 +139,25 @@ export const pages = new Hono<{ Bindings: Env }>()
   )
   .get("/app.js", etag(), (c) => script(c, appScript))
   .get("/extract.js", etag(), (c) => script(c, extractScript))
-  // 絞り込み中の一覧から開いたら、そのタグを選んでおく
+  // 絞り込み中の一覧から開いたら、そのタグを選んでおく。「保存して次を追加」では直前のタグと種別を引き継ぐ
   .get("/items/new", async (c) => {
     const { id } = spaceCookie(c);
     const tags = id === undefined ? [] : await listTags(c.env.DB, id);
-    const values = { tag_id: c.req.query("tag") ?? "" };
+    const values = {
+      tag_id: c.req.query("tag") ?? "",
+      kind: c.req.query("kind") === "use_by" ? "use_by" : "best_by",
+    };
     return render(
       c,
       "追加",
-      <ItemForm title="追加" action="/items" values={values} errors={new Set()} tags={tags} />,
+      <ItemForm
+        title="追加"
+        action="/items"
+        values={values}
+        errors={new Set()}
+        tags={tags}
+        addNext
+      />,
     );
   })
   .post("/items", resolveSpace, async (c) => {
@@ -159,11 +169,23 @@ export const pages = new Hono<{ Bindings: Env }>()
       return render(
         c,
         "追加",
-        <ItemForm title="追加" action="/items" values={values} errors={errors} tags={tags} />,
+        <ItemForm
+          title="追加"
+          action="/items"
+          values={values}
+          errors={errors}
+          tags={tags}
+          addNext
+        />,
         400,
       );
     }
-    if (await insertItem(c.env.DB, c.var.spaceId, parsed.data)) return c.redirect("/", 303);
+    const item = await insertItem(c.env.DB, c.var.spaceId, parsed.data);
+    if (item && values.next) {
+      const query = new URLSearchParams({ kind: item.kind, tag: item.tag_id ?? "" });
+      return c.redirect(`/items/new?${query.toString()}`, 303);
+    }
+    if (item) return c.redirect("/", 303);
     const message = `1つの一覧に登録できる商品は${MAX_ITEMS}件までです。使い終わった商品を削除してください。`;
     return render(c, "登録できません", <LimitReached message={message} back="/" />, 409);
   })

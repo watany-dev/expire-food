@@ -154,6 +154,7 @@ export const ItemForm = (props: {
   values: ItemFormValues;
   errors: ReadonlySet<ItemField>;
   tags: Tag[];
+  addNext?: boolean;
 }) => {
   const { values, errors } = props;
   const invalid = (field: ItemField) =>
@@ -246,6 +247,11 @@ export const ItemForm = (props: {
         </p>
         <p class="actions">
           <button>保存</button>
+          {props.addNext ? (
+            <button class="secondary" name="next" value="1">
+              保存して次を追加
+            </button>
+          ) : null}
           <a class="button secondary" href="/">
             戻る
           </a>
