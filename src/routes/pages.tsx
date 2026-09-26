@@ -212,6 +212,7 @@ export const pages = new Hono<{ Bindings: Env }>()
         values={values}
         errors={new Set()}
         tags={tags}
+        deleteAction={`/items/${item.id}/delete`}
       />,
     );
   })
