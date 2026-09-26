@@ -350,6 +350,12 @@ describe("編集", () => {
     expect(html).toContain('value="牛乳"');
     expect(html).toMatch(/value="use_by" required="" checked=""/);
     expect(html).toContain("開封済み</textarea>");
+    // スワイプに気づかなくても削除できる（確認ダイアログはフォームの外）
+    expect(html).toMatch(
+      new RegExp(
+        `</form>.*popovertarget="delete-item".*「牛乳」を削除しますか？.*action="/items/${id}/delete"`,
+      ),
+    );
   });
 
   it("メモが無ければ空のテキストエリアを出す", async () => {

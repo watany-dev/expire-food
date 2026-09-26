@@ -63,3 +63,13 @@ test("手入力で登録し、色分け・編集・削除をして、共有URL�
     await other.close();
   }
 });
+
+test("スワイプしなくても編集画面から削除できる", async ({ page }) => {
+  await page.goto("/");
+  await addItem(page, "豆腐", 2);
+  await item(page, "豆腐").getByRole("link").click();
+  await page.getByRole("button", { name: "削除", exact: true }).click();
+  await page.getByRole("button", { name: "削除する" }).click();
+  await expect(page.getByRole("status")).toHaveText("「豆腐」を削除しました。");
+  await expect(page.getByText("まだ登録がありません。")).toBeVisible();
+});

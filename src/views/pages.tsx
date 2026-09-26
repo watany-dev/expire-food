@@ -9,6 +9,19 @@ const LATER_VISIBLE = 2;
 
 type ListedItem = Item & { days_left: number };
 
+// popover 属性で JS なしに確認ダイアログを出す（要件 4.3）
+const ConfirmDelete = (props: { id: string; message: string; action: string }) => (
+  <div popover="auto" id={props.id}>
+    <p>{props.message}</p>
+    <form class="actions" method="post" action={props.action}>
+      <button class="danger">削除する</button>
+      <button class="secondary" type="button" popovertarget={props.id} popovertargetaction="hide">
+        やめる
+      </button>
+    </form>
+  </div>
+);
+
 export const ItemList = (props: {
   items: ListedItem[];
   tags: Tag[];
@@ -43,21 +56,11 @@ export const ItemList = (props: {
           削除
         </button>
       </div>
-      {/* popover 属性で JS なしに確認ダイアログを出す（要件 4.3） */}
-      <div popover="auto" id={`delete-${item.id}`}>
-        <p>「{item.name}」を削除しますか？</p>
-        <form class="actions" method="post" action={`/items/${item.id}/delete`}>
-          <button class="danger">削除する</button>
-          <button
-            class="secondary"
-            type="button"
-            popovertarget={`delete-${item.id}`}
-            popovertargetaction="hide"
-          >
-            やめる
-          </button>
-        </form>
-      </div>
+      <ConfirmDelete
+        id={`delete-${item.id}`}
+        message={`「${item.name}」を削除しますか？`}
+        action={`/items/${item.id}/delete`}
+      />
     </li>
   );
   return (
@@ -166,6 +169,7 @@ export const ItemForm = (props: {
   errors: ReadonlySet<ItemField>;
   tags: Tag[];
   addNext?: boolean;
+  deleteAction?: string;
 }) => {
   const { values, errors } = props;
   const invalid = (field: ItemField) =>
@@ -268,6 +272,21 @@ export const ItemForm = (props: {
           </a>
         </p>
       </form>
+      {/* スワイプに気づかなくても削除できるようにする。フォームは入れ子にできないので外に置く */}
+      {props.deleteAction === undefined ? null : (
+        <>
+          <p>
+            <button class="danger" type="button" popovertarget="delete-item">
+              削除
+            </button>
+          </p>
+          <ConfirmDelete
+            id="delete-item"
+            message={`「${values.name}」を削除しますか？`}
+            action={props.deleteAction}
+          />
+        </>
+      )}
       <script src="/extract.js" defer />
     </>
   );
@@ -370,20 +389,11 @@ export const TagSettings = (props: { tags: Tag[]; name: string; invalid: boolean
             <button class="danger" type="button" popovertarget={`delete-tag-${tag.id}`}>
               削除
             </button>
-            <div popover="auto" id={`delete-tag-${tag.id}`}>
-              <p>「{tag.name}」を削除しますか？付いている商品はタグなしになります。</p>
-              <form class="actions" method="post" action={`/tags/${tag.id}/delete`}>
-                <button class="danger">削除する</button>
-                <button
-                  class="secondary"
-                  type="button"
-                  popovertarget={`delete-tag-${tag.id}`}
-                  popovertargetaction="hide"
-                >
-                  やめる
-                </button>
-              </form>
-            </div>
+            <ConfirmDelete
+              id={`delete-tag-${tag.id}`}
+              message={`「${tag.name}」を削除しますか？付いている商品はタグなしになります。`}
+              action={`/tags/${tag.id}/delete`}
+            />
           </li>
         ))}
       </ul>
