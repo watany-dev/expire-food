@@ -245,6 +245,8 @@ describe("追加", () => {
     expect(html).toContain('<div id="crop" hidden="">');
     expect(html).toContain('list="name-candidates"');
     expect(html).toContain('accept="image/*" capture="environment"');
+    // 入力は見た目だけ隠し、大きなラベルで起動する
+    expect(html).toContain('<label for="photo-input" class="button">📷 撮影して読み取る</label>');
     expect(html).toContain('<script src="/extract.js" defer=""></script>');
     // 期限日のチップも /app.js が表示する
     expect(html).toMatch(/<span id="date-chips"[^>]* hidden="">/);

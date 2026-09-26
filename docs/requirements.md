@@ -46,7 +46,7 @@
 
 ### 4.1 商品登録
 
-1. 追加ボタンからカメラを起動する（`<input type="file" accept="image/*" capture="environment">`）
+1. 追加フォームの先頭の大きな「📷 撮影して読み取る」ボタンからカメラを起動する（`<input type="file" accept="image/*" capture="environment">` を見た目だけ隠し、ラベルで起動する）
 2. 撮影した画像をクライアント側で長辺800px程度にリサイズ・JPEG圧縮する
 3. `POST /api/extract` に送信し、Workers AI で以下を抽出する
    - 商品名
