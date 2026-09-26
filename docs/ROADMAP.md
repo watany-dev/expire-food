@@ -150,7 +150,8 @@
   - リポジトリ変数 `CLOUDFLARE_ACCOUNT_ID` が無い間は実行しない（本番 D1 の作成が手作業のため）
 - [x] デプロイの前提（D1・デプロイ用トークン・`production` Environment・secret・`CLOUDFLARE_ACCOUNT_ID`）を Terraform（`infra/`、state はローカル）で作る。CI の `checkov` ジョブで静的検査。[ADR 0008](./adr/0008-terraform-infra.md)
 - [x] E2E: Playwright でスマホ viewport（iPhone / Pixel）の主要導線（手入力登録 → 一覧色分け → 編集 → 削除 → 共有 URL で別端末から閲覧）。`e2e/`、CI の `e2e` ジョブ
-- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。確認は本番デプロイ後に手作業
+- [ ] Workers Observability でエラー率と `/api/extract` のレイテンシを確認（画像や本文はログに出さない）— `wrangler.jsonc` で有効化済み。呼び出しログは切ったので、件数・エラー率は Workers の Metrics で見る（ADR 0012）。確認は本番デプロイ後に手作業
+- [x] `space_id` をログとキャッシュに残さない: 呼び出しログを切り、応答は既定で `Cache-Control: no-store`（#24、[ADR 0012](./adr/0012-space-id-exposure.md)）
 - [x] 実ユーザーの Core Web Vitals（LCP ≤ 2.5s / INP ≤ 200ms / CLS ≤ 0.1）を計測する手段を決める — 自前のビーコン（`/app.js` → `POST /api/vitals` → Workers Logs）。[ADR 0006](./adr/0006-real-user-web-vitals.md)
 - [x] 無料枠の消費を確認する手段 — `bun run usage`（`scripts/usage.ts`）が GraphQL Analytics API から Workers のリクエスト数・Workers AI の Neurons・D1 の読み書き行数を直近 7 日分出し、8 割超えで終了コード 1。集計と判定は `src/domain/usage.ts`
 - [ ] 無料枠の消費確認（Workers AI の Neurons、D1 の読み書き行数）— 本番デプロイ後に `bun run usage` で手作業
