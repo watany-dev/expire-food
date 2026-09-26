@@ -130,6 +130,7 @@ describe("/api/items", () => {
       id: expect.stringMatching(/^[0-9a-f-]{36}$/),
       ...milk,
       memo: null,
+      tag_id: null,
       created_at: expect.any(String),
     });
   });
@@ -240,10 +241,78 @@ describe("スペース分離", () => {
   });
 });
 
+const postTag = async (spaceId: string, name: string) => {
+  const res = await call(spaceId, "/api/tags", { method: "POST", body: JSON.stringify({ name }) });
+  expect(res.status).toBe(201);
+  return (await res.json()) as { id: string; name: string };
+};
+
+describe("/api/tags", () => {
+  it("作った順に返し、同じ名前は増やさない", async () => {
+    const id = await newSpace();
+    const food = await postTag(id, " 食事 ");
+    const sweets = await postTag(id, "菓子");
+    expect(food).toEqual({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), name: "食事" });
+    expect(await postTag(id, "食事")).toEqual(food);
+    expect(await (await call(id, "/api/tags")).json()).toEqual([food, sweets]);
+  });
+
+  it("空の名前は 400", async () => {
+    const res = await call(await newSpace(), "/api/tags", {
+      method: "POST",
+      body: JSON.stringify({ name: " " }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("商品に付け外しでき、削除したタグの商品はタグなしに戻る", async () => {
+    const id = await newSpace();
+    const tag = await postTag(id, "酒");
+    const item = await postItem(id, { ...milk, tag_id: tag.id });
+    expect(item).toMatchObject({ tag_id: tag.id });
+
+    const patch = (tag_id: string | null) =>
+      call(id, `/api/items/${item.id}`, { method: "PATCH", body: JSON.stringify({ tag_id }) });
+    expect(await (await patch(null)).json()).toMatchObject({ tag_id: null });
+    expect(await (await patch(tag.id)).json()).toMatchObject({ tag_id: tag.id });
+    // 送らなければ残る
+    const renamed = await call(id, `/api/items/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: "日本酒" }),
+    });
+    expect(await renamed.json()).toMatchObject({ tag_id: tag.id });
+
+    expect((await call(id, `/api/tags/${tag.id}`, { method: "DELETE" })).status).toBe(204);
+    expect((await call(id, `/api/tags/${tag.id}`, { method: "DELETE" })).status).toBe(404);
+    expect(await (await call(id, "/api/items")).json()).toEqual([
+      expect.objectContaining({ id: item.id, tag_id: null }),
+    ]);
+  });
+
+  it("別スペースのタグは見えず、消せず、商品にも付けられない", async () => {
+    const owner = await newSpace();
+    const other = await newSpace();
+    const tag = await postTag(owner, "菓子");
+
+    expect(await (await call(other, "/api/tags")).json()).toEqual([]);
+    expect((await call(other, `/api/tags/${tag.id}`, { method: "DELETE" })).status).toBe(404);
+
+    const item = await postItem(other, { ...milk, tag_id: tag.id });
+    expect(item).toMatchObject({ tag_id: null });
+    const res = await call(other, `/api/items/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ tag_id: tag.id }),
+    });
+    expect(await res.json()).toMatchObject({ tag_id: null });
+    expect(await (await call(owner, "/api/tags")).json()).toEqual([tag]);
+  });
+});
+
 describe("/api/space/rotate", () => {
   it("新しい ID に商品と設定を移し、Cookie を更新する。旧 ID は使えなくなる", async () => {
     const old = await newSpace();
-    await postItem(old);
+    const tag = await postTag(old, "食事");
+    await postItem(old, { ...milk, tag_id: tag.id });
     await call(old, "/api/space", { method: "PATCH", body: JSON.stringify({ warn_days: 7 }) });
 
     const res = await call(old, "/api/space/rotate", { method: "POST" });
@@ -251,7 +320,10 @@ describe("/api/space/rotate", () => {
     const { space_id } = (await res.json()) as { space_id: string };
     expect(space_id).not.toBe(old);
     expect(spaceCookie(res)).toBe(space_id);
-    expect(await (await call(space_id, "/api/items")).json()).toHaveLength(1);
+    expect(await (await call(space_id, "/api/items")).json()).toEqual([
+      expect.objectContaining({ tag_id: tag.id }),
+    ]);
+    expect(await (await call(space_id, "/api/tags")).json()).toEqual([tag]);
     expect(await (await call(space_id, "/api/space")).json()).toEqual({ warn_days: 7 });
 
     expect((await call(space_id, `/s/${old}`)).status).toBe(404);

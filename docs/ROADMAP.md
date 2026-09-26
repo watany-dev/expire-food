@@ -156,6 +156,16 @@
 - [x] README に運用手順（D1 作成、マイグレーション、ロールバック）を追記
 - [x] 性能: 一覧・設定画面の D1 の往復を 1 回にし、`/app.js`・`/extract.js` に ETag、`zod/mini` と minify で Worker のバンドルを 319KB → 102KB（[ADR 0010](./adr/0010-performance.md)）
 
+## Phase 6: タグで分類
+
+構成は [ADR 0011](./adr/0011-tags.md)。
+
+- [x] `migrations/0002_tags.sql`（`tags` テーブル、`items.tag_id`）。共有 URL の作り直しでタグも移す
+- [x] 一覧の左上のメニュー（`popover`）でタグごとに絞り込み（`/?tag=<id>`）、行にタグ名を出す
+- [x] タグの追加・削除画面（`/tags`）、追加・編集フォームのタグ選択
+- [x] API: `GET/POST /api/tags`、`DELETE /api/tags/:id`、商品の `tag_id`
+- [ ] タグ名の変更（要望があれば）
+
 ---
 
 ## リスクと対応

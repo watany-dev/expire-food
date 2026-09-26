@@ -2,12 +2,15 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 
 import { daysUntil, todayJst } from "../domain/date";
-import { DEFAULT_WARN_DAYS, itemInput, itemPatch, spacePatch } from "../domain/schema";
+import { DEFAULT_WARN_DAYS, itemInput, itemPatch, spacePatch, tagInput } from "../domain/schema";
 import {
   deleteItem,
+  deleteTag,
   getWarnDays,
   insertItem,
+  insertTag,
   listItems,
+  listTags,
   rotateSpace,
   setWarnDays,
   updateItem,
@@ -31,6 +34,15 @@ export const api = new Hono<AppEnv>()
   })
   .delete("/items/:id", async (c) =>
     (await deleteItem(c.env.DB, c.var.spaceId, c.req.param("id")))
+      ? c.body(null, 204)
+      : c.json(notFound, 404),
+  )
+  .get("/tags", async (c) => c.json(await listTags(c.env.DB, c.var.spaceId)))
+  .post("/tags", zValidator("json", tagInput), async (c) =>
+    c.json(await insertTag(c.env.DB, c.var.spaceId, c.req.valid("json").name), 201),
+  )
+  .delete("/tags/:id", async (c) =>
+    (await deleteTag(c.env.DB, c.var.spaceId, c.req.param("id")))
       ? c.body(null, 204)
       : c.json(notFound, 404),
   )

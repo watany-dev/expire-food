@@ -9,6 +9,11 @@ const memo = z.pipe(
   z.nullable(z.string().check(z.trim(), z.maxLength(500))),
   z.transform((s) => s || null),
 );
+// フォームの「なし」は空文字で届く。他スペースのタグは保存時に NULL になる（src/platform/db.ts）
+const tagId = z.pipe(
+  z.nullable(z.union([z.uuid(), z.literal("")])),
+  z.transform((s) => s || null),
+);
 
 export const itemInput = z.object({
   name,
@@ -16,6 +21,10 @@ export const itemInput = z.object({
   kind,
   memo: z.pipe(
     z.optional(memo),
+    z.transform((s) => s ?? null),
+  ),
+  tag_id: z.pipe(
+    z.optional(tagId),
     z.transform((s) => s ?? null),
   ),
 });
@@ -26,8 +35,13 @@ export const itemPatch = z
     expires_on: z.exactOptional(expiresOn),
     kind: z.exactOptional(kind),
     memo: z.exactOptional(memo),
+    tag_id: z.exactOptional(tagId),
   })
   .check(z.refine((v) => Object.keys(v).length > 0, "更新する項目がありません"));
+
+export const tagInput = z.object({
+  name: z.string().check(z.trim(), z.minLength(1), z.maxLength(20)),
+});
 
 // migrations/0001_init.sql の spaces.warn_days の DEFAULT と揃える
 export const DEFAULT_WARN_DAYS = 3;
@@ -52,3 +66,4 @@ export const extractForm = z.object({
 export type ItemInput = z.output<typeof itemInput>;
 export type ItemPatch = z.output<typeof itemPatch>;
 export type Item = ItemInput & { id: string; created_at: string };
+export type Tag = { id: string; name: string };
