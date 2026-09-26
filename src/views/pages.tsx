@@ -9,9 +9,13 @@ const LATER_VISIBLE = 2;
 
 type ListedItem = Item & { days_left: number };
 
-const ItemRow = (props: { item: ListedItem; warnDays: number; today: string }) => {
-  const { item } = props;
-  return (
+export const ItemList = (props: {
+  items: ListedItem[];
+  warnDays: number;
+  today: string;
+  lostSpace: boolean;
+}) => {
+  const row = (item: ListedItem) => (
     <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
       {/* 左にスワイプすると削除ボタンが出る。横スクロールと scroll-snap だけで作り、JS は使わない（ADR 0009） */}
       <div class="swipe">
@@ -42,17 +46,6 @@ const ItemRow = (props: { item: ListedItem; warnDays: number; today: string }) =
         </form>
       </div>
     </li>
-  );
-};
-
-export const ItemList = (props: {
-  items: ListedItem[];
-  warnDays: number;
-  today: string;
-  lostSpace: boolean;
-}) => {
-  const row = (item: ListedItem) => (
-    <ItemRow item={item} warnDays={props.warnDays} today={props.today} />
   );
   return (
     <>
