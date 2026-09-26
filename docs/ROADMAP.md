@@ -99,6 +99,7 @@
 
 - [x] 共通レイアウト（`src/views/layout.tsx`。Hono JSX、スマホ縦画面前提の CSS を埋め込み、`viewport`）
 - [x] 一覧: 期限日昇順、商品名 / 期限日 / 種別 / 残り日数、期限切れ=赤・`warn_days` 未満=黄
+- [x] ダークモード: 色を CSS 変数にまとめ `prefers-color-scheme: dark` で切り替える。`color-scheme: light dark`、`theme-color` を media 付きで 2 つ、`offline.html` も合わせる（#49）
 - [x] 一覧の追加ボタンを右下の固定ボタン（FAB）にする。`env(safe-area-inset-*)` を考慮し、一覧の下に余白を取る（#46）
 - [x] 初回の空の一覧で使い方（撮る → 確認 → 保存）、大きな追加ボタン、共有URLの案内を出す。タグで絞り込み中の空表示は今のまま（#45）
 - [x] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証（`src/routes/pages.tsx`）
