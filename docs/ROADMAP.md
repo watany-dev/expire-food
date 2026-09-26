@@ -100,6 +100,7 @@
 - [x] 共通レイアウト（`src/views/layout.tsx`。Hono JSX、スマホ縦画面前提の CSS を埋め込み、`viewport`）
 - [x] 一覧: 期限日昇順、商品名 / 期限日 / 種別 / 残り日数、期限切れ=赤・`warn_days` 未満=黄
 - [x] 追加・編集フォーム（商品名・期限日・種別・メモ）。サーバー側でも同じ Zod スキーマで検証（`src/routes/pages.tsx`）
+- [x] 追加フォームの「保存して次を追加」: 直前のタグと種別をクエリで引き継いで `/items/new` へ戻る（#34。JS なし）
 - [x] 削除（`popover` の確認ダイアログ → 承認時のみ削除）
 - [x] 設定: `warn_days` の変更
 - [x] CSRF 対策（`hono/csrf` で Origin 検証）と CSP（`secureHeaders` の `contentSecurityPolicy`、スタイルは nonce）

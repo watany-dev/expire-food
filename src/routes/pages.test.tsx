@@ -164,6 +164,40 @@ describe("追加", () => {
     expect(html).toMatch(/value="best_by" required="" checked=""/);
   });
 
+  it("「保存して次を追加」は追加フォームにだけ出し、Enter で送る既定のボタンは「保存」のまま", async () => {
+    const html = await (await app.request("/items/new")).text();
+    expect(html).toMatch(
+      /<button>保存<\/button><button class="secondary" name="next" value="1">保存して次を追加<\/button>/,
+    );
+    const spaceId = await newSpaceWith();
+    const [id] = await itemIds(spaceId);
+    expect(await (await get(`/items/${id}/edit`, spaceId)).text()).not.toContain('name="next"');
+  });
+
+  it("「保存して次を追加」で保存すると、タグと種別を引き継いで追加フォームを開く", async () => {
+    const spaceId = await newSpaceWith();
+    const food = await addTag(spaceId, "食事");
+    const res = await post("/items", { ...milk, tag_id: food, next: "1" }, spaceId);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/items/new?kind=use_by&tag=${food}`);
+    expect(await itemIds(spaceId)).toHaveLength(2);
+    const html = await (await get(res.headers.get("location") ?? "", spaceId)).text();
+    expect(html).toMatch(/value="use_by" required="" checked=""/);
+    expect(html).toContain(`<option value="${food}" selected="">食事</option>`);
+  });
+
+  it("「保存して次を追加」でタグが無ければ種別だけを引き継ぐ。通常の保存は一覧へ戻る", async () => {
+    const spaceId = await newSpaceWith();
+    const next = await post("/items", { ...milk, kind: "best_by", next: "1" }, spaceId);
+    expect(next.headers.get("location")).toBe("/items/new?kind=best_by&tag=");
+    expect((await post("/items", milk, spaceId)).headers.get("location")).toBe("/");
+  });
+
+  it("入力エラーで出し直した追加フォームにも「保存して次を追加」を出す", async () => {
+    const html = await (await post("/items", { ...milk, name: "", next: "1" })).text();
+    expect(html).toContain('name="next" value="1"');
+  });
+
   it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
     const spaceId = await newSpaceWith({ ...milk, name: "𩸽".repeat(100), memo: "𩸽".repeat(500) });
     expect(await itemIds(spaceId)).toHaveLength(1);
