@@ -52,6 +52,10 @@ fieldset{border:0;padding:0;margin:0 0 1rem}
 fieldset label{display:inline-block;font-weight:normal;margin-right:1rem;padding:.5rem 0}
 .error{color:#b3261e;font-weight:bold}
 h2{font-size:1.2rem;margin:2rem 0 .5rem}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#photo label{display:block;padding:1rem;font-size:1.1rem;text-align:center}
+#photo-input:focus-visible+label{outline:2px solid #0b57d0;outline-offset:2px}
+#photo-input:disabled+label{opacity:.5;cursor:default}
 #crop-canvas{display:block;width:100%;height:auto;touch-action:none;border:1px solid #888}
 button:disabled{opacity:.5;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}

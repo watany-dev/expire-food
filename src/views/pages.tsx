@@ -179,9 +179,18 @@ export const ItemForm = (props: {
       <h1>{props.title}</h1>
       <form method="post" action={props.action}>
         {/* /extract.js が表示する。JS が無ければ手入力だけ（ADR 0003） */}
+        {/* 入力は見た目だけ隠し、大きなラベルのタップでカメラを起動する（フォーカスは入力が受ける） */}
         <p id="photo" hidden>
-          <label for="photo-input">写真から読み取る</label>
-          <input id="photo-input" type="file" accept="image/*" capture="environment" />
+          <input
+            id="photo-input"
+            class="visually-hidden"
+            type="file"
+            accept="image/*"
+            capture="environment"
+          />
+          <label for="photo-input" class="button">
+            📷 撮影して読み取る
+          </label>
           <span id="photo-status" role="status" />
         </p>
         {/* 期限が読めなかったとき、期限の部分を囲んで再読する（ADR 0007） */}
