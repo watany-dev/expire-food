@@ -10,8 +10,8 @@
     {
       "binding": "DB",
       "database_name": "expire-food",
-      // `wrangler d1 create expire-food` で発行された ID に置き換える（Phase 1）
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // infra/ の Terraform が作った D1（`terraform -chdir=infra output -raw d1_database_id`）
+      "database_id": "fd07c957-4891-428a-92b2-94cc57103a4a",
       "migrations_dir": "migrations",
     },
   ],

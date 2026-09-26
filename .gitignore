@@ -161,3 +161,4 @@ playwright-report/
 .terraform/
 *.tfstate
 *.tfstate.*
+tfplan

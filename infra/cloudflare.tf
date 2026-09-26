@@ -2,6 +2,11 @@ resource "cloudflare_d1_database" "main" {
   account_id = var.cloudflare_account_id
   name       = "expire-food"
 
+  # API が既定値を返すので、書かないと plan のたびに差分が出る
+  read_replication = {
+    mode = "disabled"
+  }
+
   lifecycle {
     prevent_destroy = true
   }
