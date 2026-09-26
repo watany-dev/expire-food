@@ -3,19 +3,29 @@
 // オフライン時の案内だけを出す Service Worker。登録できなくても通常どおり使える
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
+// 追加・編集画面では /extract.js と同じグローバルに宣言されるので、名前を重ねない
+const shareUrl = document.getElementById("share-url");
 const copy = document.getElementById("share-copy");
 if (copy && navigator.clipboard) {
-  const url = document.getElementById("share-url");
   const status = document.getElementById("share-status");
   copy.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(url.value);
+      await navigator.clipboard.writeText(shareUrl.value);
       status.textContent = "コピーしました。";
     } catch {
       status.textContent = "コピーできませんでした。URL を長押ししてコピーしてください。";
     }
   });
   copy.hidden = false;
+}
+
+const shareSend = document.getElementById("share-send");
+if (shareSend && navigator.share) {
+  shareSend.addEventListener("click", () => {
+    // 共有シートを閉じたときも reject されるので、何もしない
+    navigator.share({ url: shareUrl.value }).catch(() => {});
+  });
+  shareSend.hidden = false;
 }
 
 // 実ユーザーの Core Web Vitals を、画面を離れるときに 1 回だけ送る（ADR 0006）
