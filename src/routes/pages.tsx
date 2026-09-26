@@ -44,8 +44,7 @@ const formValues = async (c: Context): Promise<Record<string, string>> =>
     ),
   );
 
-// バージョンを URL に含めないので、デプロイ後に古いスクリプトが残らないよう毎回確認させる。
-// 変わっていなければ ETag で 304 を返し、本文は送り直さない
+// バージョンを URL に含めないので、デプロイ後に古いスクリプトが残らないよう毎回確認させる
 const script = (c: Context, source: string) =>
   c.body(source, 200, {
     "content-type": "text/javascript; charset=utf-8",
