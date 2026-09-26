@@ -246,12 +246,15 @@ describe("追加", () => {
     expect(html).toContain('list="name-candidates"');
     expect(html).toContain('accept="image/*" capture="environment"');
     expect(html).toContain('<script src="/extract.js" defer=""></script>');
+    // 期限日のチップも /app.js が表示する
+    expect(html).toMatch(/<span id="date-chips"[^>]* hidden="">/);
   });
 
   it.each([
     ["/extract.js", 'fetch("/api/extract"'],
     ["/app.js", 'register("/sw.js")'],
     ["/app.js", 'sendBeacon("/api/vitals"'],
+    ["/app.js", 'getElementById("date-chips")'],
   ])("%s を毎回確認させて配信する", async (path, body) => {
     const res = await app.request(path);
     expect(res.status).toBe(200);

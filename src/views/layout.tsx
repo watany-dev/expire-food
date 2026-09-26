@@ -54,6 +54,8 @@ fieldset label{display:inline-block;font-weight:normal;margin-right:1rem;padding
 h2{font-size:1.2rem;margin:2rem 0 .5rem}
 #crop-canvas{display:block;width:100%;height:auto;touch-action:none;border:1px solid #888}
 button:disabled{opacity:.5;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.chips[hidden]{display:none}
 .notice{padding:.75rem;border-left:.5rem solid #e0a800;background:#fff4c2}
 `;
 
