@@ -32,5 +32,14 @@
         "period": 60,
       },
     },
+    {
+      // スペースの発行用: 接続元（IPv6 は /64）ごとに 1 分あたり 5 回
+      "name": "SPACE_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
   ],
 }

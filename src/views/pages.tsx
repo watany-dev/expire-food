@@ -396,6 +396,16 @@ export const TagSettings = (props: { tags: Tag[]; name: string; invalid: boolean
   </>
 );
 
+export const LimitReached = (props: { message: string; back: string }) => (
+  <>
+    <h1>登録できません</h1>
+    <p>
+      {props.message}
+      <a href={props.back}>戻る</a>
+    </p>
+  </>
+);
+
 export const InvalidShareUrl = () => (
   <>
     <h1>共有URLが使えません</h1>

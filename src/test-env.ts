@@ -17,7 +17,9 @@ export const createTestEnv = async () => {
       .filter(Boolean);
     await proxy.env.DB.batch(statements.map((s) => proxy.env.DB.prepare(s)));
   }
-  return { env: proxy.env, dispose: proxy.dispose };
+  // スペースの発行の制限はキーが同じ（cf-connecting-ip が無い）だと数回で掛かるので、既定では通す
+  const env: Env = { ...proxy.env, SPACE_RATE_LIMITER: { limit: async () => ({ success: true }) } };
+  return { env, dispose: proxy.dispose };
 };
 
 /** 作り直し（`batch()`）の直前に、別の端末が先に作り直して `spaceId` を消した状態を作る */
@@ -51,4 +53,26 @@ export const withRemovedAfterCheck = (env: Env, spaceId: string): Env => {
   };
   // この経路で使うのは prepare だけ
   return { ...env, DB: { prepare } as unknown as D1Database };
+};
+
+/** 件数の上限の確認用に、スペースに商品かタグを `count` 件、1 文で直接入れる */
+export const fillSpace = async (
+  env: Env,
+  table: "items" | "tags",
+  spaceId: string,
+  count: number,
+) => {
+  const statement =
+    table === "items"
+      ? env.DB.prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?3)
+          INSERT INTO items (id, space_id, name, expires_on, kind, created_at)
+          SELECT lower(hex(randomblob(16))), ?1, '商品' || i, '2026-10-05', 'best_by', ?2 FROM n`,
+        )
+      : env.DB.prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?3)
+          INSERT INTO tags (id, space_id, name, created_at)
+          SELECT lower(hex(randomblob(16))), ?1, 'タグ' || i, ?2 FROM n`,
+        );
+  await statement.bind(spaceId, new Date().toISOString(), count).run();
 };

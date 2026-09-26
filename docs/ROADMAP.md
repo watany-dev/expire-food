@@ -88,6 +88,7 @@
   - URL で開いた場合は Cookie をその ID に更新（機種変更・家族共有）
 - [x] リポジトリ層（`src/platform/db.ts`）: すべてのクエリに `space_id` 条件を必須にする（他スペースのデータを触れない構造にする）
 - [x] API（`src/routes/api.ts`）: `GET/POST /api/items`、`PATCH/DELETE /api/items/:id`、`GET/PATCH /api/space`
+- [x] スペースの発行と件数の上限（#21、[ADR 0002](./adr/0002-server-rendered-forms.md) の追記）: `GET` の API では発行しない、発行は接続元（IPv6 は /64）ごとに 1 分 5 回（`SPACE_RATE_LIMITER`）、1 スペースの商品は 500 件・タグは 100 個まで
 - [x] JST の「今日」を返すユーティリティ（`src/domain/date.ts`）（`Intl.DateTimeFormat` + `Asia/Tokyo`）と残り日数計算
 - [x] テスト: バリデーション境界値、スペース分離（別スペースの item を PATCH/DELETE できない）、JST の日付境界（UTC 15:00 前後）
   - API の結合テストは `src/test-env.ts` が `getPlatformProxy()` のインメモリ D1 に `migrations/` を適用して行う
