@@ -5,6 +5,10 @@
   "compatibility_date": "2026-09-20",
   "observability": {
     "enabled": true,
+    "logs": {
+      // 呼び出しログはリクエスト URL を残し、共有 URL（/s/<space_id>）がそのまま載るので切る。console.* のログは残る
+      "invocation_logs": false,
+    },
   },
   // バンドルを minify するので、Workers Logs のスタックトレースを元のソースで読めるようにする
   "upload_source_maps": true,

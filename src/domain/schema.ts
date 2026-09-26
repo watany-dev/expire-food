@@ -57,10 +57,11 @@ export const MAX_ITEMS = 500;
 export const MAX_TAGS = 100;
 
 // 要件 8.1: クライアントで長辺 800px の JPEG に縮小してから送る。上限 2MB
+export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const extractForm = z.object({
   // z.file() は DOM の lib が無いと size / type しか型に持たないので instanceof で受ける
   image: z.instanceof(File).check(
-    z.refine((file) => file.size <= 2 * 1024 * 1024),
+    z.refine((file) => file.size <= MAX_IMAGE_BYTES),
     z.refine((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type)),
   ),
   // date は期限の部分だけを切り出した写真の再読（ADR 0007）
