@@ -143,3 +143,24 @@ test("登録済みの商品名を候補に出し、読み取りの候補はそ�
     await candidates.evaluateAll((options) => options.map((o) => o.getAttribute("value"))),
   ).toEqual(["明治", "牛乳"]);
 });
+
+test("高補正モードは既定で off、選ぶと judge=on で送り、次に開いても覚えている", async ({
+  page,
+}) => {
+  const judges: string[] = [];
+  await page.route("/api/extract", async (route) => {
+    judges.push(/name="judge"\r\n\r\n(\w+)/.exec(route.request().postData() ?? "")?.[1] ?? "");
+    await route.fulfill({ json: reading({ expires_on: "2026-10-05", confidence: "high" }) });
+  });
+  await page.goto("/items/new");
+  const mode = page.getByLabel("高補正モード");
+  await expect(mode).not.toBeChecked();
+  await page.getByLabel("撮影して読み取る").setInputFiles(photo);
+  await expect(page.getByLabel("期限日")).toHaveValue("2026-10-05");
+
+  await mode.check();
+  await page.reload();
+  await expect(mode).toBeChecked();
+  await page.getByLabel("撮影して読み取る").setInputFiles(photo);
+  await expect.poll(() => judges).toEqual(["off", "on"]);
+});

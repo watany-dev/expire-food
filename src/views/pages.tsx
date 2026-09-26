@@ -222,6 +222,10 @@ export const ItemForm = (props: {
           <canvas id="photo-thumb" aria-label="読み取り中の写真" hidden />
           <span class="spinner" aria-hidden="true" />
           <span id="photo-status" role="status" />
+          {/* 判定モデル（Jev）の効果を比べるため、既定は使わない（ADR 0013）。name が無いので item のフォームには載らない */}
+          <label class="check">
+            <input type="checkbox" id="photo-judge" /> 高補正モード（候補が複数あれば AI が選ぶ）
+          </label>
         </p>
         {/* 期限が読めなかったとき、期限の部分を囲んで再読する（ADR 0007） */}
         <div id="crop" hidden>

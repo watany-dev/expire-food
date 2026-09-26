@@ -12,6 +12,7 @@ const cropRead = document.getElementById("crop-read");
 const nameCandidates = document.getElementById("name-candidates");
 const knownNames = [...nameCandidates.options];
 const thumb = document.getElementById("photo-thumb");
+const judge = document.getElementById("photo-judge");
 const THUMB_SIDE = 96;
 
 // 部分再読は縮小前の写真から切り出す（小さな印字を潰さない）
@@ -35,6 +36,7 @@ const send = async (image, part) => {
   const body = new FormData();
   body.append("image", image, "photo.jpg");
   body.append("part", part);
+  body.append("judge", judge.checked ? "on" : "off");
   const res = await fetch("/api/extract", { method: "POST", body });
   if (res.status === 429) {
     return { message: "読み取りの回数が多すぎます。少し待つか、手入力してください。" };
@@ -204,6 +206,16 @@ cropRead.addEventListener("click", () =>
 document.getElementById("crop-cancel").addEventListener("click", () => {
   closeCrop();
   status.textContent = "期限を手入力してください。";
+});
+
+// A/B で比べやすいよう、高補正モードの選択は端末ごとに覚えておく
+try {
+  judge.checked = localStorage.getItem("photo-judge") === "on";
+} catch {}
+judge.addEventListener("change", () => {
+  try {
+    localStorage.setItem("photo-judge", judge.checked ? "on" : "off");
+  } catch {}
 });
 
 photo.hidden = false;

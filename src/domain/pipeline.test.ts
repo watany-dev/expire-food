@@ -86,6 +86,19 @@ describe("extractItem", () => {
     });
   });
 
+  it("判定モデルを渡さなければ（既定）候補を返してユーザーに選ばせる", async () => {
+    const read = vi.fn(async () =>
+      chat({
+        names: ["明治", "おいしい牛乳"],
+        dates: [{ text: "10.5", label: "賞味期限" }],
+        issue: null,
+      }),
+    );
+    expect(
+      await extractItem({ part: "all", today, read, knownNames: async () => [] }),
+    ).toMatchObject({ name: null, name_candidates: ["明治", "おいしい牛乳"], next: "confirm" });
+  });
+
   it("写真の問題で期限が読めなければ再撮影", async () => {
     const r = run({ names: ["牛乳"], dates: [], issue: "blur" });
     expect(await r.result).toMatchObject({ name: "牛乳", expires_on: null, next: "retake" });
