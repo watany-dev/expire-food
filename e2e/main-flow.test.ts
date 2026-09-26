@@ -12,7 +12,9 @@ const addItem = async (page: Page, name: string, offsetDays: number) => {
   await page.getByLabel("期限日").fill(jstDate(offsetDays));
   await page.getByRole("radio", { name: "消費期限" }).check();
   await page.getByRole("button", { name: "保存" }).click();
-  await expect(page).toHaveURL("/");
+  // 追加した行へ移動する
+  await expect(page).toHaveURL(/\/#item-/);
+  await expect(item(page, name)).toBeInViewport();
 };
 
 const item = (page: Page, name: string) =>
@@ -39,12 +41,12 @@ test("手入力で登録し、色分け・編集・削除をして、共有URL�
   await expect(page.getByRole("radio", { name: "消費期限" })).toBeChecked();
   await page.getByLabel("商品名").fill("卵（10個入り）");
   await page.getByRole("button", { name: "保存" }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL(/\/#item-/);
   await expect(item(page, "卵（10個入り）")).toContainText("消費");
 
   await item(page, "牛乳").getByRole("button", { name: "削除" }).click();
   await page.getByRole("button", { name: "削除する" }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("status")).toHaveText("「牛乳」を削除しました。");
   await expect(page.locator("li.item .name")).toHaveText(["卵（10個入り）", "缶詰"]);
 
   await page.getByRole("link", { name: "設定" }).click();

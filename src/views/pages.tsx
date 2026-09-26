@@ -16,11 +16,12 @@ export const ItemList = (props: {
   warnDays: number;
   today: string;
   lostSpace: boolean;
+  deleted: string | undefined;
 }) => {
   // 絞り込み中は全件が同じタグなので出さない
   const tagNames = new Map(props.tag ? [] : props.tags.map((tag) => [tag.id, tag.name]));
   const row = (item: ListedItem) => (
-    <li class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
+    <li id={`item-${item.id}`} class={`item ${itemStatus(item.days_left, props.warnDays)}`}>
       {/* 左にスワイプすると削除ボタンが出る。横スクロールと scroll-snap だけで作り、JS は使わない（ADR 0009） */}
       <div class="swipe">
         <a class="row" href={`/items/${item.id}/edit`}>
@@ -103,6 +104,11 @@ export const ItemList = (props: {
           この端末で使っていた一覧が見つかりません。共有URLが作り直された可能性があります。共有している人から新しい共有URLを受け取って開いてください（このまま追加すると別の新しい一覧になります）。
         </p>
       ) : null}
+      {props.deleted === undefined ? null : (
+        <p class="notice" role="status">
+          「{props.deleted}」を削除しました。
+        </p>
+      )}
       {props.items.length === 0 ? (
         <p>{props.tag ? `「${props.tag.name}」の商品はありません。` : "まだ登録がありません。"}</p>
       ) : (

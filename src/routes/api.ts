@@ -42,7 +42,8 @@ export const api = new Hono<{ Bindings: Env }>()
   })
   .delete("/items/:id", findSpace, async (c) => {
     const spaceId = c.var.spaceId;
-    return spaceId !== undefined && (await deleteItem(c.env.DB, spaceId, c.req.param("id")))
+    return spaceId !== undefined &&
+      (await deleteItem(c.env.DB, spaceId, c.req.param("id"))) !== null
       ? c.body(null, 204)
       : c.json(notFound, 404);
   })

@@ -87,7 +87,7 @@ describe("一覧", () => {
     const html = await res.text();
     const rows = [
       ...html.matchAll(
-        /<li class="item (\w+)">.*?class="name"[^>]*>([^<]+)<.*?class="days">([^<]+)</g,
+        /<li id="item-[^"]+" class="item (\w+)">.*?class="name"[^>]*>([^<]+)<.*?class="days">([^<]+)</g,
       ),
     ];
     expect(rows.map((m) => m.slice(1))).toEqual([
@@ -162,6 +162,14 @@ describe("追加", () => {
     const html = await (await app.request("/items/new")).text();
     expect(html).toContain('action="/items"');
     expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
+  it("保存すると追加した行へ移動し、行は :target で強調できるよう id を持つ", async () => {
+    const res = await post("/items", milk);
+    const spaceId = spaceCookie(res) ?? "";
+    const [id] = await itemIds(spaceId);
+    expect(res.headers.get("location")).toBe(`/#item-${id}`);
+    expect(await (await get("/", spaceId)).text()).toContain(`<li id="item-${id}" class="item `);
   });
 
   it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
@@ -303,7 +311,7 @@ describe("編集", () => {
       spaceId,
     );
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("location")).toBe(`/#item-${id}`);
     const items = await (
       await app.request("/api/items", { headers: { cookie: `space_id=${spaceId}` } }, env)
     ).json();
@@ -350,11 +358,23 @@ describe("削除", () => {
     const spaceId = await newSpaceWith();
     const [id] = await itemIds(spaceId);
     const other = await newSpaceWith();
-    expect((await post(`/items/${id}/delete`, {}, other)).status).toBe(303);
+    const denied = await post(`/items/${id}/delete`, {}, other);
+    expect(denied.status).toBe(303);
+    expect(denied.headers.get("location")).toBe("/");
     expect(await itemIds(spaceId)).toEqual([id]);
     const res = await post(`/items/${id}/delete`, {}, spaceId);
     expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`/?deleted=${encodeURIComponent("牛乳")}`);
     expect(await itemIds(spaceId)).toEqual([]);
+  });
+
+  it("削除した商品名を一覧の上に知らせる（エスケープして出す）", async () => {
+    const spaceId = await newSpaceWith();
+    const html = await (await get(`/?deleted=${encodeURIComponent("<牛乳>")}`, spaceId)).text();
+    expect(html).toContain('<p class="notice" role="status">「&lt;牛乳&gt;」を削除しました。</p>');
+    expect(await (await get("/", spaceId)).text()).not.toContain("を削除しました");
+    const long = await (await get(`/?deleted=${"a".repeat(101)}`, spaceId)).text();
+    expect(long).toContain(`「${"a".repeat(100)}」を削除しました。`);
   });
 });
 
