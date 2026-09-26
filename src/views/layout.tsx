@@ -22,6 +22,10 @@ header .title h1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #tag-menu ul{list-style:none;margin:0 0 1rem;padding:0}
 #tag-menu li a{display:block;padding:.6rem .75rem;border-radius:.5rem;text-decoration:none}
 #tag-menu [aria-current]{background:var(--accent-bg);font-weight:bold}
+.tag-chips{display:flex;gap:.5rem;overflow-x:auto;margin:.75rem -1rem 0;padding:0 1rem .25rem;scrollbar-width:none}
+.tag-chips::-webkit-scrollbar{display:none}
+.tag-chips a{flex:none;display:flex;align-items:center;min-height:44px;padding:0 1rem;border:1px solid var(--line);border-radius:2rem;color:var(--fg);text-decoration:none;white-space:nowrap}
+.tag-chips [aria-current]{background:var(--primary);border-color:var(--primary);color:var(--on-primary);font-weight:bold}
 .row .tag{margin-right:.4rem;padding:0 .4rem;border-radius:.25rem;background:var(--accent-bg);color:var(--primary)}
 .tags{list-style:none;margin:0 0 1.5rem;padding:0}
 .tags li{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.25rem 0;border-bottom:1px solid var(--line)}

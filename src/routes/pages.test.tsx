@@ -528,6 +528,23 @@ describe("タグ", () => {
     expect(html).toContain('href="/tags"');
   });
 
+  it("ヘッダーの下にもタグをチップで並べ、今のタグを強調する。タグが無ければ出さない", async () => {
+    const spaceId = await newSpaceWith();
+    expect(await (await get("/", spaceId)).text()).not.toContain('class="tag-chips"');
+    const food = await addTag(spaceId, "食事");
+    const drink = await addTag(spaceId, "酒");
+    const chips = async (path: string) =>
+      /<nav class="tag-chips" aria-label="タグで絞り込む">(.*?)<\/nav>/.exec(
+        await (await get(path, spaceId)).text(),
+      )?.[1];
+    expect(await chips("/")).toBe(
+      `<a href="/" aria-current="page">すべて</a><a href="/?tag=${food}">食事</a><a href="/?tag=${drink}">酒</a>`,
+    );
+    expect(await chips(`/?tag=${drink}`)).toBe(
+      `<a href="/">すべて</a><a href="/?tag=${food}">食事</a><a href="/?tag=${drink}" aria-current="page">酒</a>`,
+    );
+  });
+
   it("タグを付けて登録すると一覧に出し、タグで絞り込める", async () => {
     const spaceId = await newSpaceWith({ ...milk, name: "牛乳" });
     const food = await addTag(spaceId, "食事");

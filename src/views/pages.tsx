@@ -87,6 +87,22 @@ export const ItemList = (props: {
       <a class="button fab" href={props.tag ? `/items/new?tag=${props.tag.id}` : "/items/new"}>
         ＋ 追加
       </a>
+      {/* 1 タップで切り替えられるよう、ヘッダーの下にも横スクロールのチップで並べる（ADR 0011） */}
+      {props.tags.length > 0 ? (
+        <nav class="tag-chips" aria-label="タグで絞り込む">
+          <a href="/" aria-current={props.tag ? undefined : "page"}>
+            すべて
+          </a>
+          {props.tags.map((tag) => (
+            <a
+              href={`/?tag=${tag.id}`}
+              aria-current={tag.id === props.tag?.id ? "page" : undefined}
+            >
+              {tag.name}
+            </a>
+          ))}
+        </nav>
+      ) : null}
       {/* popover で JS なしに開く（ADR 0011） */}
       <nav popover="auto" id="tag-menu" aria-label="タグ">
         <ul>

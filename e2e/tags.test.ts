@@ -28,3 +28,28 @@ test("左上のメニューからタグを作り、タグを付けて登録し�
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("酒");
   await expect(page.locator("li.item .name")).toHaveText(["ビール"]);
 });
+
+test("ヘッダー下のチップで 1 タップでタグを切り替える", async ({ page }) => {
+  await page.goto("/tags");
+  for (const name of ["食事", "酒"]) {
+    await page.getByLabel("新しいタグ").fill(name);
+    await page.getByRole("button", { name: "追加" }).click();
+  }
+  for (const [name, tag] of [
+    ["パン", "食事"],
+    ["ビール", "酒"],
+  ] as const) {
+    await page.goto("/items/new");
+    await page.getByLabel("商品名").fill(name);
+    await page.getByLabel("期限日").fill("2099-01-01");
+    await page.getByLabel("タグ").selectOption({ label: tag });
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+  }
+
+  const chips = page.getByRole("navigation", { name: "タグで絞り込む" });
+  await chips.getByRole("link", { name: "酒" }).click();
+  await expect(page.locator("li.item .name")).toHaveText(["ビール"]);
+  await expect(chips.getByRole("link", { name: "酒" })).toHaveAttribute("aria-current", "page");
+  await chips.getByRole("link", { name: "すべて" }).click();
+  await expect(page.locator("li.item .name")).toHaveText(["パン", "ビール"]);
+});
