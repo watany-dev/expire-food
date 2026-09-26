@@ -56,6 +56,11 @@ h2{font-size:1.2rem;margin:2rem 0 .5rem}
 #photo label{display:block;padding:1rem;font-size:1.1rem;text-align:center}
 #photo-input:focus-visible+label{outline:2px solid #0b57d0;outline-offset:2px}
 #photo-input:disabled+label{opacity:.5;cursor:default}
+#photo-thumb{display:block;max-width:6rem;max-height:6rem;margin-top:.5rem;border-radius:.25rem}
+#photo-thumb[hidden],.spinner{display:none}
+.busy .spinner{display:inline-block;width:1em;height:1em;margin:.5rem .5rem 0 0;vertical-align:-.15em;border:.2em solid #c2d7fa;border-top-color:#0b57d0;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.busy .spinner{animation:none}}
 #crop-canvas{display:block;width:100%;height:auto;touch-action:none;border:1px solid #888}
 button:disabled{opacity:.5;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}

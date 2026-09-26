@@ -10,6 +10,8 @@ const crop = document.getElementById("crop");
 const canvas = document.getElementById("crop-canvas");
 const cropRead = document.getElementById("crop-read");
 const nameCandidates = document.getElementById("name-candidates");
+const thumb = document.getElementById("photo-thumb");
+const THUMB_SIDE = 96;
 
 // 部分再読は縮小前の写真から切り出す（小さな印字を潰さない）
 let bitmap = null;
@@ -108,9 +110,21 @@ const read = async (image, part) => {
   return fill(result, part);
 };
 
+const showThumb = () => {
+  const scale = Math.min(
+    1,
+    (THUMB_SIDE * devicePixelRatio) / Math.max(bitmap.width, bitmap.height),
+  );
+  thumb.width = Math.round(bitmap.width * scale);
+  thumb.height = Math.round(bitmap.height * scale);
+  thumb.getContext("2d").drawImage(bitmap, 0, 0, thumb.width, thumb.height);
+  thumb.hidden = false;
+};
+
 const busy = async (task) => {
   input.disabled = true;
   cropRead.disabled = true;
+  photo.classList.add("busy");
   status.textContent = "読み取り中…";
   try {
     status.textContent = await task();
@@ -120,6 +134,10 @@ const busy = async (task) => {
   } finally {
     input.disabled = false;
     cropRead.disabled = !area;
+    photo.classList.remove("busy");
+    thumb.hidden = true;
+    // 縮小画像も写真なので、読み終えたら消す
+    thumb.width = 0;
   }
 };
 
@@ -130,6 +148,7 @@ input.addEventListener("change", () => {
   closeCrop();
   return busy(async () => {
     bitmap = await createImageBitmap(file);
+    showThumb();
     return read(await toJpeg(bitmap, 0, 0, bitmap.width, bitmap.height), "all");
   });
 });

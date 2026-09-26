@@ -86,8 +86,23 @@ test("本文の上限（413）で断られたら手入力を促す。読み取�
 
   await expect(page.getByRole("status")).toHaveText("読み取り中…");
   await expect(camera).toBeDisabled();
+  // どの写真を読んでいるかと、止まっていないことが分かる
+  await expect(page.getByLabel("読み取り中の写真")).toBeVisible();
+  await expect(page.locator("#photo .spinner")).toBeVisible();
   respond();
   await expect(page.getByRole("status")).toHaveText("読み取れませんでした。手入力してください。");
   await expect(camera).toBeEnabled();
+  await expect(page.getByLabel("読み取り中の写真")).toBeHidden();
+  await expect(page.locator("#photo .spinner")).toBeHidden();
   await expect(page.getByLabel("商品名")).toBeEditable();
+});
+
+test("動きを減らす設定ではスピナーを回さない", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("/api/extract", () => {});
+  await page.goto("/items/new");
+  await page.getByLabel("撮影して読み取る").setInputFiles(photo);
+  const spinner = page.locator("#photo .spinner");
+  await expect(spinner).toBeVisible();
+  await expect(spinner).toHaveCSS("animation-name", "none");
 });

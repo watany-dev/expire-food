@@ -191,6 +191,9 @@ export const ItemForm = (props: {
           <label for="photo-input" class="button">
             📷 撮影して読み取る
           </label>
+          {/* 読み取り中だけ、撮った写真の縮小画像とスピナーを出す。写真はメモリ上だけで扱う（要件 8.1） */}
+          <canvas id="photo-thumb" aria-label="読み取り中の写真" hidden />
+          <span class="spinner" aria-hidden="true" />
           <span id="photo-status" role="status" />
         </p>
         {/* 期限が読めなかったとき、期限の部分を囲んで再読する（ADR 0007） */}
