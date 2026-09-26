@@ -143,7 +143,10 @@ export const pages = new Hono<{ Bindings: Env }>()
   .get("/items/new", async (c) => {
     const { id } = spaceCookie(c);
     const tags = id === undefined ? [] : await listTags(c.env.DB, id);
-    const values = { tag_id: c.req.query("tag") ?? "", kind: c.req.query("kind") ?? "best_by" };
+    const values = {
+      tag_id: c.req.query("tag") ?? "",
+      kind: c.req.query("kind") === "use_by" ? "use_by" : "best_by",
+    };
     return render(
       c,
       "追加",

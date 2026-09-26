@@ -217,7 +217,7 @@ export const ItemForm = (props: {
                 name="kind"
                 value={kind}
                 required
-                checked={values.kind === kind}
+                checked={(values.kind ?? "best_by") === kind}
               />
               {kindLabel[kind]}
             </label>

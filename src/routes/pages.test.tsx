@@ -198,6 +198,17 @@ describe("追加", () => {
     expect(html).toContain('name="next" value="1"');
   });
 
+  it("引き継ぐ種別が不正なら賞味期限を選んでおく", async () => {
+    const html = await (await app.request("/items/new?kind=foo")).text();
+    expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
+  it("種別の無い入力エラーで出し直したフォームも賞味期限を選んでおく", async () => {
+    const { kind: _, ...noKind } = milk;
+    const html = await (await post("/items", noKind)).text();
+    expect(html).toMatch(/value="best_by" required="" checked=""/);
+  });
+
   it("上限いっぱいの商品名・メモ（4 バイト文字）は本文の上限に収まる", async () => {
     const spaceId = await newSpaceWith({ ...milk, name: "𩸽".repeat(100), memo: "𩸽".repeat(500) });
     expect(await itemIds(spaceId)).toHaveLength(1);
