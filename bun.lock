@@ -15,7 +15,7 @@
         "@lhci/cli": "0.15.1",
         "@playwright/test": "1.63.0",
         "@vitest/coverage-v8": "5.0.1",
-        "fast-check": "4.10.1",
+        "fast-check": "4.10.2",
         "knip": "6.38.0",
         "typescript": "7.0.2",
         "vite": "npm:@voidzero-dev/vite-plus-core@1.0.0-rc.0",
@@ -707,7 +707,7 @@
 
     "external-editor": ["external-editor@3.1.0", "", { "dependencies": { "chardet": "^0.7.0", "iconv-lite": "^0.4.24", "tmp": "^0.0.33" } }, "sha512-hMQ4CX1p1izmuLYyZqLMO/qGNw10wSv9QDCPfzXfyFrOaCSSoRfqE1Kf1s5an66J5JZC62NewG+mK49jOCtQew=="],
 
-    "fast-check": ["fast-check@4.10.1", "", { "dependencies": { "pure-rand": "^8.0.0" } }, "sha512-sB5Vghiu8MyCyToHoBVGsT0baZg3sZWNIY+a6Ct2EDrQJlT4YdH6MC1BSLNe3kX1k5i5g0q1O52XFgcKK/rGHg=="],
+    "fast-check": ["fast-check@4.10.2", "", { "dependencies": { "pure-rand": "^8.0.0" } }, "sha512-iK2f+YrcmoeGqk6fA0ea2bptcu/itMIm4NfEozq6N25+aG6h7s5HZbB/k1aV7b5w5sFLMCbbtRUsTVR+BgC3xw=="],
 
     "fd-package-json": ["fd-package-json@2.0.0", "", { "dependencies": { "walk-up-path": "^4.0.0" } }, "sha512-jKmm9YtsNXN789RS/0mSzOC1NUq9mkVd65vbSSVsKdjGvYXBuE4oWe2QOEoFeRmJg+lPuZxpmrfFclNhoRMneQ=="],
 
