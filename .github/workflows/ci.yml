@@ -193,7 +193,7 @@ jobs:
           curl -fsSL --retry 5 --retry-all-errors "$BASE_URL/SHA256SUMS" -o SHA256SUMS
           sha256sum --ignore-missing -c SHA256SUMS
           tar -xzf "$ARCHIVE"
-      - uses: watany-dev/zghalint@49748850f6fa16bcb5302539425b0879275c259e # v0.0.2
+      - uses: watany-dev/zghalint@83188550edee2d9b3f219a76ecd8848c004adcf8 # v0.0.3
         with:
           binary: ./zghalint-linux-x86_64/zghalint
           paths: ".github/workflows/*.yml"
